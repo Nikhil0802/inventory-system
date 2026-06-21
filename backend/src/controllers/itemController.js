@@ -1,5 +1,4 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../config/prismaClient');
 
 const getItems = async (req, res) => {
   try {
@@ -20,10 +19,12 @@ const createItem = async (req, res) => {
       manufacturingDate, expiryDate, serialNumber, location,
     } = req.body;
 
-    // Check license limit
-    const license = await prisma.license.findUnique({
-      where: { userId: req.user.userId },
+    // Check license limit — license is on the User model (licenseId FK)
+    const userWithLicense = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: { license: true },
     });
+    const license = userWithLicense?.license;
 
     if (license.type === 'free') {
       const itemCount = await prisma.item.count({

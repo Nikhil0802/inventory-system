@@ -2,6 +2,16 @@
 
 This is the backend service for the Inventory Management System.
 
+## Overview
+
+The backend is built with Node.js, Express, and Prisma. It connects to Azure SQL using a database URL stored in `backend/.env`.
+
+## Prerequisites
+
+- Node.js 18+ or newer
+- npm
+- An Azure SQL connection string configured in `backend/.env`
+
 ## Setup
 
 1. Copy `.env.example` to `.env`.
@@ -11,28 +21,72 @@ This is the backend service for the Inventory Management System.
    npm install
    ```
 
-## Available scripts
+## Environment configuration
 
-- `npm run dev` - start the server in development mode with `nodemon`
-- `npm start` - start the server in production mode
+The backend uses `dotenv` to load environment variables from `backend/.env`. Keep this file local and do not commit it to git. The project already ignores `backend/.env` via `.gitignore`.
 
-## Local development
+Example `backend/.env`:
 
-Run:
+```env
+PORT=5001
+DATABASE_URL="sqlserver://inventory-server-database.database.windows.net:1433;database=inventory-db;user=adminuser;password=your-password;encrypt=true;trustServerCertificate=false;MultipleActiveResultSets=False"
+JWT_SECRET=your_jwt_secret_here
+NODE_ENV=development
+API_URL=http://localhost:5001
+```
+
+## Run locally
+
+Start the server from the backend folder:
 
 ```bash
+cd backend
 npm run dev
 ```
 
-Then open:
+Or in production mode:
 
 ```bash
-http://localhost:5000/api/health
+cd backend
+npm start
 ```
 
-## Health check
+The server listens on `http://localhost:5001` by default.
 
-The backend exposes a health check endpoint at `/api/health`.
+## Health and database checks
+
+- `GET /api/health` - confirms the backend is running
+- `GET /api/db-health` - confirms Prisma can connect to the database
+
+## Recommended workflow for Mac restarts
+
+- Keep `backend/.env` in place. It is loaded every time the server starts.
+- Start the server from the `backend` directory.
+- Do not delete `backend/.env` unless you want to reset secrets.
+
+## Sustainable deployment guidance
+
+For development and local testing, running the backend on your Mac is fine. For a sustainable production-grade setup, consider deploying to cloud infrastructure.
+
+### When to move to cloud infrastructure
+
+Use cloud hosting if you need:
+
+- 24/7 uptime and no dependency on your Mac being on
+- automatic restarts and monitoring
+- secure secret management (Azure Key Vault or similar)
+- scaling to more users or traffic
+- a publicly accessible API endpoint
+
+### Recommended cloud options
+
+- Azure App Service or Azure Container Apps for the backend
+- Azure SQL for the database (already in use)
+- Azure Key Vault or GitHub Secrets for connection secrets
+
+### What you do not need immediately
+
+If this is only for local development, you do not need to move to Azure right now. Keep the backend on your Mac for testing and use cloud hosting later when you want production reliability.
 
 ## Project structure
 
