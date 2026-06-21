@@ -1,6 +1,6 @@
 const jwt = require('jsonwebtoken');
 
-module.exports = function authMiddleware(req, res, next) {
+const verifyToken = (req, res, next) => {
   const authHeader = req.headers.authorization || req.headers.Authorization;
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Authorization token required' });
@@ -14,4 +14,16 @@ module.exports = function authMiddleware(req, res, next) {
   } catch (err) {
     return res.status(401).json({ error: 'Invalid or expired token' });
   }
+};
+
+const checkRole = (allowedRoles = []) => (req, res, next) => {
+  if (!req.user || !allowedRoles.includes(req.user.role)) {
+    return res.status(403).json({ error: 'Forbidden: insufficient permissions' });
+  }
+  next();
+};
+
+module.exports = {
+  verifyToken,
+  checkRole,
 };
