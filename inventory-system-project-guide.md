@@ -2268,11 +2268,244 @@ git push origin main
 
 ---
 
-## Task 21: Deploy to Azure
-**Objective:** Make app live on the internet
-**Duration:** 2 hours
+## Task 21: Deploy Backend to Azure VM
+**Objective:** Host the backend server on Azure so it runs 24/7 — no more shutdowns when Mac is off
+**Duration:** 2-3 hours
 
-(Azure deployment with Static Web Apps + App Service)
+### Why Azure VM instead of running locally?
+- Server stays up even when your Mac is off or sleeping
+- Same Azure region as your SQL database = near-zero latency (~1ms vs ~100ms)
+- Fixed public IP so the frontend can always reach the API
+- Deploy new code with one command
+
+### Architecture
+```
+Your Mac  →  git push  →  GitHub  →  git pull on VM  →  Azure VM (Node.js + PM2)
+                                                                  │
+                                                                  ▼
+                                                         Azure SQL Database
+```
+
+---
+
+### Part A: Create the Azure VM
+
+1. Go to Azure Portal → search "Virtual Machines" → **Create**
+2. Fill in:
+   - **Resource group:** `inventory-rg` (same as your SQL server)
+   - **VM name:** `inventory-vm`
+   - **Region:** Same region as your SQL server (e.g., Central India)
+   - **Image:** Ubuntu Server 22.04 LTS
+   - **Size:** B1s (1 vCPU, 1GB RAM — ~₹600/month)
+   - **Authentication type:** SSH public key
+     - Key pair name: `inventory-vm-key`
+     - Click **Download private key** when prompted — save the `.pem` file safely
+3. **Networking tab:**
+   - Allow selected inbound ports: check **SSH (22)** and **HTTP (80)**
+4. Click **Review + Create** → **Create**
+5. Wait ~2 minutes for deployment
+
+---
+
+### Part B: Open Port 5001 on the VM Firewall
+
+1. Azure Portal → Your VM → **Networking** → **Add inbound port rule**
+2. Fill in:
+   - Destination port ranges: `5001`
+   - Protocol: TCP
+   - Name: `allow-backend-5001`
+3. Click **Add**
+
+---
+
+### Part C: SSH Into the VM
+
+Run these on your Mac:
+```bash
+# Move key to .ssh folder and fix permissions
+mv ~/Downloads/inventory-vm-key.pem ~/.ssh/
+chmod 400 ~/.ssh/inventory-vm-key.pem
+
+# Find your VM's public IP: Azure Portal → VM → Overview → Public IP address
+ssh -i ~/.ssh/inventory-vm-key.pem azureuser@<YOUR-VM-PUBLIC-IP>
+```
+
+---
+
+### Part D: Install Node.js, PM2, and Git on the VM
+
+Run these commands inside the VM after SSH:
+```bash
+# Update system packages
+sudo apt update && sudo apt upgrade -y
+
+# Install Node.js 18
+curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+sudo apt install -y nodejs
+
+# Verify
+node -v    # should show v18.x
+npm -v
+
+# Install PM2 globally
+sudo npm install -g pm2
+
+# Verify Git (pre-installed on Ubuntu)
+git --version
+```
+
+---
+
+### Part E: Clone Repo and Configure Environment
+
+```bash
+# Clone your GitHub repo onto the VM
+git clone https://github.com/<your-username>/inventory-system.git
+cd inventory-system/backend
+
+# Install dependencies
+npm install
+
+# Generate Prisma client
+npx prisma generate
+
+# Create .env file
+nano .env
+```
+
+Paste your real credentials into nano:
+```
+PORT=5001
+DATABASE_URL=<your Azure SQL connection string from Task 5>
+JWT_SECRET=<your JWT secret>
+NODE_ENV=production
+```
+Save: `Ctrl+O` → Enter → `Ctrl+X`
+
+---
+
+### Part F: Start Server with PM2
+
+```bash
+# Start the server
+pm2 start src/server.js --name "inventory-backend"
+
+# Check it is running
+pm2 status
+
+# Test locally on the VM
+curl http://localhost:5001/api/health
+
+# Configure PM2 to auto-start when the VM reboots
+pm2 startup
+# Copy the command PM2 prints and run it (starts with: sudo env PATH=...)
+
+pm2 save
+```
+
+---
+
+### Part G: Verify from Outside the VM
+
+From your Mac browser or Thunder Client:
+```
+GET http://<YOUR-VM-PUBLIC-IP>:5001/api/health
+```
+Expected response:
+```json
+{ "status": "Backend is running!", "timestamp": "..." }
+```
+
+---
+
+### Part H: Deploy Code Updates (Manual)
+
+Each time you push changes to GitHub and want to deploy to the VM:
+```bash
+# SSH into VM
+ssh -i ~/.ssh/inventory-vm-key.pem azureuser@<YOUR-VM-PUBLIC-IP>
+
+# Pull latest code and restart
+cd inventory-system/backend
+git pull
+npm install          # only needed if package.json changed
+npx prisma generate  # only needed if schema.prisma changed
+pm2 restart inventory-backend
+pm2 logs inventory-backend --lines 20   # verify no errors
+```
+
+---
+
+### Part I (Optional): Auto-Deploy with GitHub Actions
+
+Set this up so every `git push` to `main` auto-deploys to the VM — no manual SSH needed.
+
+**Step 1 — Add secrets to your GitHub repo:**
+- Go to your GitHub repo → Settings → Secrets and variables → Actions → **New repository secret**
+- Add these three secrets:
+
+| Secret name | Value |
+|---|---|
+| `VM_HOST` | Your VM's public IP address |
+| `VM_USER` | `azureuser` |
+| `VM_SSH_KEY` | Full contents of your `.pem` file (open in VS Code, copy all text) |
+
+**Step 2 — Create the workflow file** at `.github/workflows/deploy.yml`:
+```yaml
+name: Deploy to Azure VM
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            cd inventory-system/backend
+            git pull origin main
+            npm install --production
+            npx prisma generate
+            pm2 restart inventory-backend
+```
+
+**Step 3 — Push the workflow file to GitHub:**
+```bash
+git add .github/workflows/deploy.yml
+git commit -m "Add GitHub Actions auto-deploy to Azure VM"
+git push origin main
+```
+
+Every future `git push` to `main` will now automatically deploy to your VM.
+
+---
+
+### Useful PM2 Commands (on the VM)
+
+| Command | What it does |
+|---|---|
+| `pm2 status` | See if server is running |
+| `pm2 logs inventory-backend` | View live logs |
+| `pm2 restart inventory-backend` | Restart after code changes |
+| `pm2 monit` | Live CPU/RAM/log dashboard |
+| `pm2 stop inventory-backend` | Stop the server |
+
+---
+
+### Deliverable:
+- ✅ Azure VM created and running Ubuntu 22.04
+- ✅ Node.js 18 + PM2 + Git installed on VM
+- ✅ Backend running on VM, managed by PM2
+- ✅ PM2 configured to auto-start on VM reboot
+- ✅ API reachable at `http://<VM-IP>:5001/api/health` from browser
+- ✅ Code deployment process working (manual SSH or GitHub Actions)
 
 ---
 
