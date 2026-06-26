@@ -15,6 +15,19 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+// Bug 7 fix: if any request gets a 401 (expired/invalid token), clear storage and redirect to login
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+    }
+    return Promise.reject(error);
+  }
+);
+
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),

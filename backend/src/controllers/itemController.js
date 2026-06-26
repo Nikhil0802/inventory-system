@@ -26,7 +26,7 @@ const createItem = async (req, res) => {
     });
     const license = userWithLicense?.license;
 
-    if (license.type === 'free') {
+    if (license && license.type === 'free') {
       const itemCount = await prisma.item.count({
         where: { userId: req.user.userId },
       });
@@ -43,19 +43,23 @@ const createItem = async (req, res) => {
         sku,
         name,
         description,
-        barcode,
+        barcode: barcode || '',
         quantity: parseInt(quantity) || 0,
         price: parseFloat(price),
         category,
         manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         serialNumber,
-        location,
+        location: location || '',
       },
     });
 
     res.status(201).json(item);
   } catch (error) {
+    // Bug 3 fix: catch duplicate SKU (Prisma unique constraint error code P2002)
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'An item with this SKU already exists.' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Failed to create item' });
   }
@@ -88,6 +92,13 @@ const updateItem = async (req, res) => {
 
     res.json(item);
   } catch (error) {
+    // Bug 6 fix: catch record not found (Prisma error code P2025)
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Item not found.' });
+    }
+    if (error.code === 'P2002') {
+      return res.status(409).json({ error: 'An item with this SKU already exists.' });
+    }
     console.error(error);
     res.status(500).json({ error: 'Failed to update item' });
   }
@@ -103,6 +114,9 @@ const deleteItem = async (req, res) => {
 
     res.json({ message: 'Item deleted' });
   } catch (error) {
+    if (error.code === 'P2025') {
+      return res.status(404).json({ error: 'Item not found.' });
+    }
     res.status(500).json({ error: 'Failed to delete item' });
   }
 };
@@ -110,6 +124,11 @@ const deleteItem = async (req, res) => {
 const getItemByBarcode = async (req, res) => {
   try {
     const { barcode } = req.query;
+
+    // Bug 5 fix: return 400 if barcode param is missing
+    if (!barcode) {
+      return res.status(400).json({ error: 'Barcode query parameter is required.' });
+    }
 
     const item = await prisma.item.findFirst({
       where: {
