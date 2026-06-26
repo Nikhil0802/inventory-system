@@ -64,19 +64,31 @@ const createItem = async (req, res) => {
 const updateItem = async (req, res) => {
   try {
     const { id } = req.params;
-    const data = req.body;
+    const {
+      sku, name, description, barcode, quantity, price,
+      category, manufacturingDate, expiryDate, serialNumber, location,
+    } = req.body;
 
     const item = await prisma.item.update({
       where: { id },
       data: {
-        ...data,
-        quantity: data.quantity ? parseInt(data.quantity) : undefined,
-        price: data.price ? parseFloat(data.price) : undefined,
+        sku,
+        name,
+        description,
+        barcode,
+        quantity: quantity !== undefined ? parseInt(quantity) : undefined,
+        price: price !== undefined ? parseFloat(price) : undefined,
+        category,
+        manufacturingDate: manufacturingDate ? new Date(manufacturingDate) : null,
+        expiryDate: expiryDate ? new Date(expiryDate) : null,
+        serialNumber,
+        location,
       },
     });
 
     res.json(item);
   } catch (error) {
+    console.error(error);
     res.status(500).json({ error: 'Failed to update item' });
   }
 };

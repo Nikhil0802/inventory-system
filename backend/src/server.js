@@ -9,7 +9,10 @@ const authMiddleware = require('./middleware/authMiddleware');
 const prisma = require('./config/prismaClient');
 
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: ['http://localhost:3000', 'http://localhost:5001'],
+  credentials: true,
+}));
 app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
