@@ -1,12 +1,12 @@
 import { useState, useEffect } from 'react';
 import { itemAPI } from '../api/api';
 
-export default function ItemForm({ onSuccess, editingItem, onCancel }) {
+export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarcode = '' }) {
   const [formData, setFormData] = useState({
     sku: '',
     name: '',
     description: '',
-    barcode: '',
+    barcode: prefillBarcode,
     quantity: 0,
     price: 0,
     category: 'electronics',

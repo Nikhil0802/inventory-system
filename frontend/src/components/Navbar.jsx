@@ -35,6 +35,12 @@ export default function Navbar() {
               >
                 Transactions
               </button>
+              <button
+                onClick={() => navigate('/scan')}
+                className="hover:bg-blue-700 px-3 py-2 rounded flex items-center gap-1"
+              >
+                Scan
+              </button>
             </div>
           </div>
 

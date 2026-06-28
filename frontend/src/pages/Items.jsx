@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import ItemForm from '../components/ItemForm';
 import ItemTable from '../components/ItemTable';
 import { itemAPI } from '../api/api';
 
 export default function Items() {
+  const [searchParams] = useSearchParams();
+  const prefillBarcode = searchParams.get('barcode') || '';
   const [items, setItems] = useState([]);
   const [editingItem, setEditingItem] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -56,6 +59,7 @@ export default function Items() {
           onSuccess={fetchItems}
           editingItem={editingItem}
           onCancel={() => setEditingItem(null)}
+          prefillBarcode={prefillBarcode}
         />
 
         {/* Search and Filter Bar */}
