@@ -2,30 +2,40 @@ import { useEffect, useRef } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
 
 export default function BarcodeScanner({ onScan, onError }) {
-  const scannerRef = useRef(null);
-  const activeRef = useRef(true);
+  const startedRef = useRef(false);
+  const scannedRef = useRef(false);
 
   useEffect(() => {
-    const scanner = new Html5Qrcode('barcode-reader-box');
-    scannerRef.current = scanner;
+    let scanner;
+    try {
+      scanner = new Html5Qrcode('barcode-reader-box');
+    } catch (e) {
+      onError('Scanner could not be initialized.');
+      return;
+    }
 
     scanner.start(
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 260, height: 140 } },
       (text) => {
-        if (!activeRef.current) return;
-        activeRef.current = false;
+        if (scannedRef.current) return;
+        scannedRef.current = true;
+        startedRef.current = false;
         scanner.stop().catch(() => {});
         onScan(text);
       },
       () => {}
-    ).catch(() => {
-      onError('Camera access denied. Allow camera permission or enter barcode manually below.');
+    ).then(() => {
+      startedRef.current = true;
+    }).catch(() => {
+      onError('Camera access denied. Use manual entry below.');
     });
 
     return () => {
-      activeRef.current = false;
-      scanner.stop().catch(() => {});
+      if (startedRef.current) {
+        startedRef.current = false;
+        scanner.stop().catch(() => {});
+      }
     };
   }, []);
 
