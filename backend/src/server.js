@@ -10,7 +10,7 @@ const prisma = require('./config/prismaClient');
 
 const app = express();
 app.use(cors({
-  origin: ['http://localhost:3000', 'http://localhost:5001'],
+  origin: ['http://localhost:3000', 'http://20.235.170.248'],
   credentials: true,
 }));
 app.use(express.json());
