@@ -5,6 +5,9 @@ import Dashboard from './pages/Dashboard';
 import Items from './pages/Items';
 import Transactions from './pages/Transactions';
 import Scan from './pages/Scan';
+import Expenses from './pages/Expenses';
+import Reports from './pages/Reports';
+import ProfitDashboard from './pages/ProfitDashboard';
 import ProtectedRoute from './components/ProtectedRoute';
 
 function App() {
@@ -45,6 +48,30 @@ function App() {
           element={
             <ProtectedRoute>
               <Scan />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <Expenses />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/reports"
+          element={
+            <ProtectedRoute>
+              <Reports />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/profit"
+          element={
+            <ProtectedRoute>
+              <ProfitDashboard />
             </ProtectedRoute>
           }
         />

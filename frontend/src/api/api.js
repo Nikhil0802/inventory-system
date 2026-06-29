@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = 'http://20.235.170.248/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -45,6 +45,29 @@ export const transactionAPI = {
   create: (data) => api.post('/transactions', data),
   getAll: () => api.get('/transactions'),
   getByItem: (itemId) => api.get(`/transactions/item/${itemId}`),
+};
+
+export const profitAPI = {
+  getToday: () => api.get('/profit/today'),
+  getMonth: (year, month) => api.get(`/profit/month/${year}/${month}`),
+  getItems: () => api.get('/profit/items'),
+  getComparison: (period) => api.get(`/profit/comparison/${period}`),
+};
+
+export const expenseAPI = {
+  // Categories
+  getCategories: () => api.get('/expenses/categories'),
+  createCategory: (data) => api.post('/expenses/categories', data),
+  updateCategory: (id, data) => api.put(`/expenses/categories/${id}`, data),
+  deleteCategory: (id) => api.delete(`/expenses/categories/${id}`),
+  // Expenses
+  getAll: (params) => api.get('/expenses', { params }),
+  create: (data) => api.post('/expenses', data),
+  update: (id, data) => api.put(`/expenses/${id}`, data),
+  delete: (id) => api.delete(`/expenses/${id}`),
+  // Analytics
+  getMonthlySummary: (year, month) => api.get(`/expenses/summary/${year}/${month}`),
+  getNetProfit: (year, month) => api.get(`/expenses/netprofit/${year}/${month}`),
 };
 
 export default api;

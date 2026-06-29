@@ -1,4 +1,5 @@
 const prisma = require('../config/prismaClient');
+const { calculateProfit, validatePrices } = require('../services/profitCalculation');
 
 const getItems = async (req, res) => {
   try {
@@ -37,6 +38,20 @@ const createItem = async (req, res) => {
       }
     }
 
+    const {
+      purchasePrice, salePriceRetail, mrp, gstRate,
+    } = req.body;
+
+    // Validate pricing if provided
+    if (purchasePrice || salePriceRetail) {
+      const { isValid, errors } = validatePrices(purchasePrice, salePriceRetail, mrp);
+      if (!isValid) return res.status(400).json({ error: errors.join(' ') });
+    }
+
+    const { profitAmount, profitPercentage } = purchasePrice && salePriceRetail
+      ? calculateProfit(purchasePrice, salePriceRetail)
+      : { profitAmount: null, profitPercentage: null };
+
     const item = await prisma.item.create({
       data: {
         userId: req.user.userId,
@@ -51,6 +66,12 @@ const createItem = async (req, res) => {
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         serialNumber,
         location: location || '',
+        purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
+        salePriceRetail: salePriceRetail ? parseFloat(salePriceRetail) : null,
+        mrp: mrp ? parseFloat(mrp) : null,
+        gstRate: gstRate || null,
+        profitPercentage,
+        marginAmount: profitAmount,
       },
     });
 
@@ -71,7 +92,17 @@ const updateItem = async (req, res) => {
     const {
       sku, name, description, barcode, quantity, price,
       category, manufacturingDate, expiryDate, serialNumber, location,
+      purchasePrice, salePriceRetail, mrp, gstRate,
     } = req.body;
+
+    if (purchasePrice || salePriceRetail) {
+      const { isValid, errors } = validatePrices(purchasePrice, salePriceRetail, mrp);
+      if (!isValid) return res.status(400).json({ error: errors.join(' ') });
+    }
+
+    const { profitAmount, profitPercentage } = purchasePrice && salePriceRetail
+      ? calculateProfit(purchasePrice, salePriceRetail)
+      : { profitAmount: undefined, profitPercentage: undefined };
 
     const item = await prisma.item.update({
       where: { id },
@@ -87,6 +118,12 @@ const updateItem = async (req, res) => {
         expiryDate: expiryDate ? new Date(expiryDate) : null,
         serialNumber,
         location,
+        purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : undefined,
+        salePriceRetail: salePriceRetail !== undefined ? parseFloat(salePriceRetail) : undefined,
+        mrp: mrp !== undefined ? (mrp ? parseFloat(mrp) : null) : undefined,
+        gstRate: gstRate !== undefined ? gstRate : undefined,
+        profitPercentage,
+        marginAmount: profitAmount,
       },
     });
 

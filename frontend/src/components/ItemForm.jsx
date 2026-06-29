@@ -1,5 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { itemAPI } from '../api/api';
+
+const GST_RATES = ['0', '5', '12', '18', '28'];
 
 export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarcode = '' }) {
   const [formData, setFormData] = useState({
@@ -14,6 +16,10 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
     expiryDate: '',
     serialNumber: '',
     location: '',
+    purchasePrice: '',
+    salePriceRetail: '',
+    mrp: '',
+    gstRate: '18',
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -28,9 +34,32 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
         expiryDate: editingItem.expiryDate
           ? editingItem.expiryDate.split('T')[0]
           : '',
+        purchasePrice: editingItem.purchasePrice ?? '',
+        salePriceRetail: editingItem.salePriceRetail ?? '',
+        mrp: editingItem.mrp ?? '',
+        gstRate: editingItem.gstRate ?? '18',
       });
     }
   }, [editingItem]);
+
+  // Real-time profit calculation
+  const profitInfo = useMemo(() => {
+    const purchase = parseFloat(formData.purchasePrice);
+    const sale = parseFloat(formData.salePriceRetail);
+    if (!purchase || !sale || sale <= 0) return null;
+    const profitAmount = sale - purchase;
+    const profitPct = (profitAmount / sale) * 100;
+    const gst = parseFloat(formData.gstRate) || 0;
+    const gstAmount = sale * (gst / 100);
+    return {
+      profitAmount: profitAmount.toFixed(2),
+      profitPct: profitPct.toFixed(1),
+      gstAmount: gstAmount.toFixed(2),
+      priceWithGST: (sale + gstAmount).toFixed(2),
+      isValid: sale >= purchase,
+      color: profitPct >= 15 ? 'green' : profitPct >= 10 ? 'yellow' : 'red',
+    };
+  }, [formData.purchasePrice, formData.salePriceRetail, formData.gstRate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -61,6 +90,10 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
           expiryDate: '',
           serialNumber: '',
           location: '',
+          purchasePrice: '',
+          salePriceRetail: '',
+          mrp: '',
+          gstRate: '18',
         });
       }
       onSuccess();
@@ -233,6 +266,107 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
               onChange={handleChange}
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
             />
+          </div>
+
+          {/* Pricing & Profit Section */}
+          <div className="md:col-span-2">
+            <div className="border-t border-gray-200 pt-4 mt-2">
+              <h4 className="text-sm font-semibold text-gray-700 mb-3 uppercase tracking-wide">Pricing & Profit</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Purchase Price (₹)</label>
+                  <input
+                    type="number"
+                    name="purchasePrice"
+                    value={formData.purchasePrice}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Cost you paid"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Sale Price / Retail (₹)</label>
+                  <input
+                    type="number"
+                    name="salePriceRetail"
+                    value={formData.salePriceRetail}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Price you sell at"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">MRP (₹) <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input
+                    type="number"
+                    name="mrp"
+                    value={formData.mrp}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Maximum Retail Price"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
+                  <select
+                    name="gstRate"
+                    value={formData.gstRate}
+                    onChange={handleChange}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  >
+                    {GST_RATES.map(r => (
+                      <option key={r} value={r}>{r}%</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Real-time Profit Preview */}
+              {profitInfo && (
+                <div className={`mt-4 p-4 rounded-lg border-2 ${
+                  !profitInfo.isValid
+                    ? 'bg-red-50 border-red-300'
+                    : profitInfo.color === 'green'
+                    ? 'bg-green-50 border-green-300'
+                    : profitInfo.color === 'yellow'
+                    ? 'bg-yellow-50 border-yellow-300'
+                    : 'bg-red-50 border-red-300'
+                }`}>
+                  {!profitInfo.isValid ? (
+                    <p className="text-red-700 font-medium text-sm">Sale price cannot be less than purchase price</p>
+                  ) : (
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-500">Profit Amount</p>
+                        <p className={`font-bold text-lg ${profitInfo.color === 'green' ? 'text-green-700' : profitInfo.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>
+                          ₹{profitInfo.profitAmount}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Profit Margin</p>
+                        <p className={`font-bold text-lg ${profitInfo.color === 'green' ? 'text-green-700' : profitInfo.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>
+                          {profitInfo.profitPct}%
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">GST ({formData.gstRate}%)</p>
+                        <p className="font-semibold text-gray-700">₹{profitInfo.gstAmount}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500">Price + GST</p>
+                        <p className="font-semibold text-gray-700">₹{profitInfo.priceWithGST}</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="md:col-span-2">
