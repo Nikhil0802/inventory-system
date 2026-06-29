@@ -2279,7 +2279,7 @@ git push origin main
 - Deploy new code with one command
 
 ### Architecture
-```
+``` xefhem-dyfgoq-kufSe0
 Your Mac  →  git push  →  GitHub  →  git pull on VM  →  Azure VM (Node.js + PM2)
                                                                   │
                                                                   ▼
@@ -2559,3 +2559,423 @@ Every future `git push` to `main` will now automatically deploy to your VM.
 - GitHub Discussions for community help
 - Prisma Discord for database issues
 - Azure Support for cloud issues
+
+---
+
+---
+
+# PART 6: PHASE 2 — ENHANCEMENTS (Added During Development)
+
+> These features were added after the MVP baseline (v1.0.0) was tagged and deployed. All tasks in this section are on the `feature/pricing-financial-intelligence` branch and follow the same Git workflow: build locally → test locally → merge to main → deploy to VM.
+
+---
+
+## Task 23: Database Schema — Pricing Fields on Items
+**Status:** ✅ Complete
+**Branch:** feature/pricing-financial-intelligence
+**File:** `backend/prisma/schema.prisma`
+
+### What Was Added
+Six new optional fields added to the `Item` model:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `purchasePrice` | Decimal(10,2) | Cost paid to supplier |
+| `salePriceRetail` | Decimal(10,2) | Price charged to customer |
+| `mrp` | Decimal(10,2) | Maximum Retail Price (packaged goods) |
+| `gstRate` | VarChar(10) | GST rate: "0", "5", "12", "18", "28" |
+| `profitPercentage` | Decimal(5,2) | Auto-calculated: ((sale - purchase) / sale) × 100 |
+| `marginAmount` | Decimal(10,2) | Auto-calculated: sale - purchase |
+
+All fields are nullable (`?`) so existing items are not affected.
+
+### Migration Command
+```bash
+cd backend
+npx prisma db push
+```
+
+---
+
+## Task 24: Database Schema — Financial Fields on Transactions
+**Status:** ✅ Complete
+**File:** `backend/prisma/schema.prisma`
+
+### What Was Added
+Six new optional fields added to the `Transaction` model:
+
+| Field | Type | Purpose |
+|-------|------|---------|
+| `gstRate` | VarChar(10) | GST rate applied on this transaction |
+| `gstAmount` | Decimal(10,2) | GST amount charged |
+| `discountPercentage` | Decimal(5,2) | Discount % given |
+| `discountAmount` | Decimal(10,2) | Discount in ₹ |
+| `netAmount` | Decimal(12,2) | Final: (qty × price) + GST - discount |
+| `paymentMethod` | VarChar(50) | "cash", "cheque", "online", "credit" |
+
+---
+
+## Task 25: Profit Calculation Service
+**Status:** ✅ Complete
+**File:** `backend/src/services/profitCalculation.js`
+
+### Functions Exported
+```js
+calculateProfit(purchasePrice, salePriceRetail)
+  → { profitAmount, profitPercentage }
+
+calculateGST(amount, gstRate)
+  → { gstAmount, totalWithGST }
+
+calculateNetAmount(subtotal, gstAmount, discountAmount)
+  → netAmount
+
+calculateDiscount(amount, discountPercentage)
+  → { discountAmount, amountAfterDiscount }
+
+validatePrices(purchasePrice, salePriceRetail, mrp)
+  → { isValid, errors[] }
+```
+
+### Business Rules
+- Sale price cannot be less than purchase price
+- Sale price cannot exceed MRP
+- All calculations return values rounded to 2 decimal places
+
+---
+
+## Task 26: Item Controller — Auto Profit Calculation
+**Status:** ✅ Complete
+**File:** `backend/src/controllers/itemController.js`
+
+### Changes
+- Imports `calculateProfit` and `validatePrices` from the profit service
+- On `createItem`: validates pricing fields, calculates `profitPercentage` and `marginAmount`, stores them in DB
+- On `updateItem`: same validation and recalculation on every update
+- If pricing fields are not provided, fields are stored as `null` (backwards compatible)
+
+---
+
+## Task 27: Profit API Endpoints
+**Status:** ✅ Complete
+**File:** `backend/src/controllers/profitController.js`
+**Routes:** `backend/src/routes/profitRoutes.js`
+
+### Endpoints (all protected by `verifyToken`)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/profit/today` | Today's sales, cost, gross profit, margin, top items |
+| GET | `/api/profit/month/:year/:month` | Monthly P&L with daily breakdown |
+| GET | `/api/profit/items` | All items ranked by total profit (all-time) |
+| GET | `/api/profit/comparison/:period` | This period vs last (today/week/month/year) |
+
+### Response Example — `/api/profit/today`
+```json
+{
+  "date": "2026-06-28",
+  "totalSales": 12400.00,
+  "totalCost": 9300.00,
+  "grossProfit": 3100.00,
+  "profitMargin": 25.00,
+  "transactionCount": 34,
+  "salesGrowth": 8.5,
+  "topItems": [
+    { "name": "Phone", "sold": 5, "profit": 2500.00 }
+  ]
+}
+```
+
+---
+
+## Task 28: Enhanced Item Form — Real-Time Profit Preview
+**Status:** ✅ Complete
+**File:** `frontend/src/components/ItemForm.jsx`
+
+### New Fields Added to Form
+- **Purchase Price (₹)** — cost paid
+- **Sale Price / Retail (₹)** — customer price
+- **MRP (₹)** — optional, for packaged goods
+- **GST Rate (%)** — dropdown: 0%, 5%, 12%, 18%, 28%
+
+### Real-Time Profit Preview Panel
+Displays below pricing fields as user types:
+- Profit Amount (₹)
+- Profit Margin (%)
+- GST Amount (₹)
+- Price + GST (₹)
+
+Color coding:
+- 🟢 Green: margin ≥ 15%
+- 🟡 Yellow: margin 10–14%
+- 🔴 Red: margin < 10% or sale < purchase
+
+---
+
+## Task 29: Dashboard — Merged Profit Intelligence
+**Status:** ✅ Complete
+**File:** `frontend/src/pages/Dashboard.jsx`
+
+Profit Dashboard was merged into the main Dashboard page (no separate nav tab).
+
+### Sections on Dashboard
+1. **Inventory** — Total items, Inventory value, Low stock count, License tier
+2. **Today's Performance** — Sales, Gross profit + margin, Transaction count, Avg sale value
+3. **Monthly P&L** — Sales vs cost vs gross profit with margin %
+4. **Daily Profit Chart** — Last 14 days bar chart (recharts)
+5. **Top Products by Profit** — Top 5 items ranked by total profit with margin badge
+6. **Recent Transactions** — Last 5 with color-coded type badges
+
+### Dependencies Added
+```bash
+npm install recharts
+```
+
+---
+
+## Task 30: Reports Page — PDF & Excel Export
+**Status:** ✅ Complete
+**File:** `frontend/src/pages/Reports.jsx`
+**Route:** `/reports`
+**Navbar:** "Reports" link added
+
+### Report Types
+| Report | Contents |
+|--------|---------|
+| Monthly P&L | Sales, COGS, Gross Profit, Margin, Daily breakdown table |
+| Item Profitability | All items ranked by profit — qty sold, revenue, profit, margin |
+
+### Export Formats
+- **PDF** — Professional layout with header, table, totals (via jsPDF + jspdf-autotable)
+- **Excel** — Raw data in .xlsx format with separate sheets (via xlsx)
+
+### Dependencies Added
+```bash
+npm install jspdf jspdf-autotable xlsx
+```
+
+---
+
+## Task 31: Barcode Scanning Feature
+**Status:** ✅ Complete (manual entry works; camera requires HTTPS)
+**Files:**
+- `frontend/src/components/BarcodeScanner.jsx`
+- `frontend/src/pages/Scan.jsx`
+**Route:** `/scan`
+**Navbar:** "Scan" link added
+
+### User Flow
+```
+Open /scan page
+  ↓
+Camera tries to open (blocked on HTTP — shows error message)
+  ↓
+User enters barcode in manual entry box
+  ↓
+System searches for item by barcode
+  ├── Found → Shows item details (name, SKU, stock, price, location, expiry)
+  │           → Transaction form: type / qty / price / date / supplier / ref / notes
+  │           → Submit → Transaction recorded → "Scan Another" button
+  └── Not Found → "Add New Item" button → navigates to /items?barcode=xxx
+                                          (barcode pre-filled in Add Item form)
+```
+
+### Camera Scanning Limitation
+Camera access requires HTTPS. Current VM serves over HTTP (`http://20.235.170.248`). To enable camera scanning, HTTPS must be configured (requires domain name + SSL certificate via Let's Encrypt or Cloudflare Tunnel).
+
+### Library Used
+```bash
+npm install html5-qrcode
+```
+
+---
+
+## Task 32: Items Page — Sub-tab Navigation
+**Status:** ✅ Complete
+**File:** `frontend/src/pages/Items.jsx`
+
+Replaced the single-view Items page with a 5-tab layout.
+
+### Sub-tabs
+
+| Tab | Description |
+|-----|-------------|
+| **Items List** | Full inventory table with search (name/SKU/barcode) and category filter. Edit button switches to Modify tab. |
+| **Add Item** | Clean form with all fields including new pricing section. On save → returns to Items List. Accepts `?barcode=xxx` URL param (pre-fills barcode from Scan page). |
+| **Remove Item** | Search + dedicated delete table with warning banner. Confirmation dialog before delete. |
+| **Modify Item** | Search list → click Edit → form pre-filled with item data. Back link to return to list. |
+| **Inventory Report** | Filterable by category and stock level. Summary cards (total items, inventory value, low stock). Download as PDF (landscape) or Excel with all fields including pricing data. |
+
+---
+
+## Task 33: Transactions Page — Sub-tab Navigation
+**Status:** ✅ Complete
+**File:** `frontend/src/pages/Transactions.jsx`
+
+Replaced the single-view Transactions page with a 6-tab layout.
+
+### Sub-tabs
+
+| Tab | Description |
+|-----|-------------|
+| **Record Transaction** | Form to create a new transaction. On success → switches to All Transactions tab. |
+| **All Transactions** | Full list with search (item name / supplier / reference) and type filter. PDF + Excel export buttons. |
+| **Recent** | Last 10 transactions recorded. PDF + Excel export. |
+| **Today's** | Transactions from the current calendar day. Summary bar + exports. |
+| **Top 10 by Value** | Top 10 transactions sorted by total amount descending. PDF + Excel export. |
+| **Transaction Report** | Date range selector + type filter → Generate → shows results with summary bar. Download as PDF or Excel. |
+
+### Summary Bar (on all list tabs)
+Every tab except "Record" shows a 3-card summary bar:
+- **Total Value** — sum of all displayed transactions
+- **Sales** — sum of sale transactions only
+- **Purchases** — sum of purchase transactions only
+
+---
+
+## Task 34: Frontend Environment Variables
+**Status:** ✅ Complete
+**Files:**
+- `frontend/.env.development`
+- `frontend/.env.production`
+
+### Problem Solved
+The `api.js` base URL was hardcoded to the Azure VM IP. When running locally with the VM stopped, all API calls failed and the login page appeared "stuck".
+
+### Solution
+```js
+// frontend/src/api/api.js
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5001/api';
+```
+
+| Environment | File | Value |
+|-------------|------|-------|
+| Local dev (`npm start`) | `.env.development` | `http://localhost:5001/api` |
+| Production build (`npm run build`) | `.env.production` | `/api` (relative — Nginx proxies it) |
+
+This means local and VM environments are completely independent. Stopping the VM does not affect local development.
+
+---
+
+## Task 35: VM Deployment — Nginx Frontend Hosting
+**Status:** ✅ Complete
+
+### Architecture
+```
+Browser → http://20.235.170.248 (port 80)
+               ↓
+           Nginx
+           ├── / → serves React build files from ~/inventory-system/frontend/build
+           └── /api/ → proxies to http://localhost:5001/api/ (Node.js via PM2)
+```
+
+### Nginx Config Location
+- System: `/etc/nginx/sites-available/inventory`
+- Repo copy: `docs/nginx/inventory.conf`
+
+### Key Config
+```nginx
+server {
+    listen 80;
+    server_name 20.235.170.248;
+    root /home/azureadmin/inventory-system/frontend/build;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location /api/ {
+        proxy_pass http://localhost:5001/api/;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+### Permission Fix Required
+Home directory on Azure VM defaults to `700`. Nginx (`www-data`) cannot read files without:
+```bash
+sudo chmod 755 /home/azureadmin
+sudo chmod -R 755 /home/azureadmin/inventory-system/frontend/build
+```
+
+### Deploy After Code Changes
+```bash
+ssh azureadmin@20.235.170.248
+cd ~/inventory-system
+git pull origin main
+
+# If backend changed:
+pm2 restart inventory-backend
+
+# If frontend changed:
+cd frontend && npm install && npm run build
+# Nginx serves new build automatically — no restart needed
+```
+
+---
+
+## Current State — Feature Summary
+
+### Navbar Links (in order)
+Dashboard · Items · Transactions · Scan · Reports
+
+### API Endpoints (complete list)
+
+**Auth**
+- `POST /api/auth/register`
+- `POST /api/auth/login`
+
+**Items**
+- `GET /api/items`
+- `POST /api/items`
+- `PUT /api/items/:id`
+- `DELETE /api/items/:id`
+- `GET /api/items/barcode/search?barcode=xxx`
+
+**Transactions**
+- `GET /api/transactions`
+- `POST /api/transactions`
+- `GET /api/transactions/item/:itemId`
+
+**Profit**
+- `GET /api/profit/today`
+- `GET /api/profit/month/:year/:month`
+- `GET /api/profit/items`
+- `GET /api/profit/comparison/:period`
+
+**Health**
+- `GET /api/health`
+- `GET /api/db-health`
+
+### Git Baseline
+- **Tag:** `v1.0.0` — MVP before Phase 2 features
+- **Branch:** `feature/pricing-financial-intelligence` — current Phase 2 work
+- **Main:** always reflects what is live on VM
+
+---
+
+## Pending Items
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Merge `feature/pricing-financial-intelligence` to `main` | High | After local testing complete |
+| Deploy Phase 2 to VM | High | After merge to main |
+| HTTPS setup (Cloudflare Tunnel or domain) | Medium | Required for camera barcode scanning |
+| Task 22: Testing checklist | Medium | End-to-end testing of all features |
+| GitHub Actions auto-deploy | Low | Trigger `git pull + npm run build + pm2 restart` on push to main |
+
+
+
+
+
+
+  curl http://20.235.170.248:5001/api/health
+
+http://20.235.170.248:5001/api/db-health
+
+xefhem-dyfgoq-kufSe0
+
+

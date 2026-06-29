@@ -35,6 +35,30 @@ export default function Navbar() {
               >
                 Transactions
               </button>
+              <button
+                onClick={() => navigate('/scan')}
+                className="hover:bg-blue-700 px-3 py-2 rounded"
+              >
+                Scan
+              </button>
+              <button
+                onClick={() => navigate('/expenses')}
+                className="hover:bg-blue-700 px-3 py-2 rounded"
+              >
+                Expenses
+              </button>
+              <button
+                onClick={() => navigate('/profit')}
+                className="hover:bg-blue-700 px-3 py-2 rounded"
+              >
+                Profit
+              </button>
+              <button
+                onClick={() => navigate('/reports')}
+                className="hover:bg-blue-700 px-3 py-2 rounded"
+              >
+                Reports
+              </button>
             </div>
           </div>
 

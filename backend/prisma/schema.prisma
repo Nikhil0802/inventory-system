@@ -30,9 +30,41 @@ model User {
   createdAt DateTime @default(now())
   licenseId String?  @db.Char(36)
   license   License? @relation(fields: [licenseId], references: [id], onDelete: SetNull)
-  items         Item[]
-  transactions  Transaction[]
+  items             Item[]
+  transactions      Transaction[]
+  expenseCategories ExpenseCategory[]
+  expenses          Expense[]
   @@map("Users")
+}
+
+model ExpenseCategory {
+  id            String    @id @default(uuid()) @db.Char(36)
+  name          String    @db.VarChar(100)
+  description   String?   @db.VarChar(255)
+  monthlyBudget Decimal?  @db.Decimal(10, 2)
+  isRecurring   Boolean   @default(false)
+  userId        String    @db.Char(36)
+  user          User      @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  expenses      Expense[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  @@map("ExpenseCategories")
+}
+
+model Expense {
+  id          String          @id @default(uuid()) @db.Char(36)
+  categoryId  String          @db.Char(36)
+  category    ExpenseCategory @relation(fields: [categoryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  amount      Decimal         @db.Decimal(10, 2)
+  vendor      String?         @db.VarChar(255)
+  description String?         @db.VarChar(500)
+  expenseDate DateTime
+  isRecurring Boolean         @default(false)
+  userId      String          @db.Char(36)
+  user        User            @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  @@map("Expenses")
 }
 
 model Item {
@@ -50,6 +82,15 @@ model Item {
   location          String   @db.VarChar(255)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+
+  // Pricing & profit fields (Phase 2)
+  purchasePrice     Decimal? @db.Decimal(10, 2)
+  salePriceRetail   Decimal? @db.Decimal(10, 2)
+  mrp               Decimal? @db.Decimal(10, 2)
+  gstRate           String?  @db.VarChar(10)
+  profitPercentage  Decimal? @db.Decimal(5, 2)
+  marginAmount      Decimal? @db.Decimal(10, 2)
+
   userId String @db.Char(36)
   user   User   @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   transactions Transaction[]
@@ -67,6 +108,15 @@ model Transaction {
   supplierOrBuyer  String   @db.VarChar(255)
   notes            String?  @db.Text
   createdAt        DateTime @default(now())
+
+  // Financial fields (Phase 2)
+  gstRate           String?  @db.VarChar(10)
+  gstAmount         Decimal? @db.Decimal(10, 2)
+  discountPercentage Decimal? @db.Decimal(5, 2)
+  discountAmount    Decimal? @db.Decimal(10, 2)
+  netAmount         Decimal? @db.Decimal(12, 2)
+  paymentMethod     String?  @db.VarChar(50)
+
   userId String @db.Char(36)
   user   User   @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   itemId String @db.Char(36)

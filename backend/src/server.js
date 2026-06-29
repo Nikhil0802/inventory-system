@@ -5,6 +5,8 @@ const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 const itemRoutes = require('./routes/itemRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
+const profitRoutes = require('./routes/profitRoutes');
+const expenseRoutes = require('./routes/expenseRoutes');
 const authMiddleware = require('./middleware/authMiddleware');
 const prisma = require('./config/prismaClient');
 
@@ -17,6 +19,8 @@ app.use(express.json());
 app.use('/api/auth', authRoutes);
 app.use('/api/items', itemRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/profit', profitRoutes);
+app.use('/api/expenses', expenseRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ 
