@@ -68,6 +68,10 @@ export const expenseAPI = {
   // Analytics
   getMonthlySummary: (year, month) => api.get(`/expenses/summary/${year}/${month}`),
   getNetProfit: (year, month) => api.get(`/expenses/netprofit/${year}/${month}`),
+  getTrend: (months) => api.get('/expenses/trend', { params: { months } }),
+  // Recurring
+  getPendingRecurring: () => api.get('/expenses/recurring/pending'),
+  confirmRecurring: (data) => api.post('/expenses/recurring/confirm', data),
 };
 
 export default api;

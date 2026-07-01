@@ -310,8 +310,127 @@ const getNetProfit = async (req, res) => {
   }
 };
 
+// ── RECURRING AUTO-POPULATE ───────────────────────────────────────────────────
+
+const getPendingRecurring = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const now = new Date();
+
+    const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd   = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59);
+    const thisMonthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const thisMonthEnd   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+
+    const [lastMonthRecurring, thisMonthExpenses] = await Promise.all([
+      prisma.expense.findMany({
+        where: { userId, isRecurring: true, expenseDate: { gte: lastMonthStart, lte: lastMonthEnd } },
+        include: { category: true },
+        orderBy: { amount: 'desc' },
+      }),
+      prisma.expense.findMany({
+        where: { userId, expenseDate: { gte: thisMonthStart, lte: thisMonthEnd } },
+        select: { categoryId: true },
+      }),
+    ]);
+
+    const thisMonthCatIds = new Set(thisMonthExpenses.map(e => e.categoryId));
+    const pending = lastMonthRecurring.filter(e => !thisMonthCatIds.has(e.categoryId));
+
+    return res.json(pending);
+  } catch (err) {
+    console.error('getPendingRecurring error:', err);
+    return res.status(500).json({ error: 'Failed to fetch pending recurring expenses' });
+  }
+};
+
+const confirmRecurring = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const { expenses } = req.body;
+
+    if (!Array.isArray(expenses) || expenses.length === 0) {
+      return res.status(400).json({ error: 'No expenses provided' });
+    }
+
+    const categoryIds = [...new Set(expenses.map(e => e.categoryId))];
+    const validCats = await prisma.expenseCategory.findMany({
+      where: { id: { in: categoryIds }, userId },
+      select: { id: true },
+    });
+    const validCatIds = new Set(validCats.map(c => c.id));
+
+    const toCreate = expenses
+      .filter(e => validCatIds.has(e.categoryId))
+      .map(e => ({
+        userId,
+        categoryId: e.categoryId,
+        amount: parseFloat(e.amount),
+        vendor: e.vendor || null,
+        description: e.description || 'Recurring expense',
+        expenseDate: new Date(e.expenseDate),
+        isRecurring: true,
+      }));
+
+    await prisma.expense.createMany({ data: toCreate });
+    return res.json({ created: toCreate.length });
+  } catch (err) {
+    console.error('confirmRecurring error:', err);
+    return res.status(500).json({ error: 'Failed to confirm recurring expenses' });
+  }
+};
+
+// ── EXPENSE TREND ─────────────────────────────────────────────────────────────
+
+const getExpenseTrend = async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const months = Math.min(parseInt(req.query.months) || 6, 12);
+    const now = new Date();
+
+    const result = [];
+    const categoryTotals = {};
+
+    for (let i = months - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const start = new Date(d.getFullYear(), d.getMonth(), 1);
+      const end   = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
+
+      const expenses = await prisma.expense.findMany({
+        where: { userId, expenseDate: { gte: start, lte: end } },
+        include: { category: { select: { name: true } } },
+      });
+
+      const total = expenses.reduce((s, e) => s + parseFloat(e.amount), 0);
+      const byCategory = {};
+      expenses.forEach(e => {
+        const name = e.category.name;
+        byCategory[name] = (byCategory[name] || 0) + parseFloat(e.amount);
+        categoryTotals[name] = (categoryTotals[name] || 0) + parseFloat(e.amount);
+      });
+
+      result.push({
+        label: d.toLocaleString('default', { month: 'short', year: 'numeric' }),
+        total: parseFloat(total.toFixed(2)),
+        ...Object.fromEntries(Object.entries(byCategory).map(([k, v]) => [k, parseFloat(v.toFixed(2))])),
+      });
+    }
+
+    const topCategories = Object.entries(categoryTotals)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 6)
+      .map(([name]) => name);
+
+    return res.json({ months: result, topCategories });
+  } catch (err) {
+    console.error('getExpenseTrend error:', err);
+    return res.status(500).json({ error: 'Failed to fetch expense trend' });
+  }
+};
+
 module.exports = {
   getCategories, createCategory, updateCategory, deleteCategory,
   getExpenses, createExpense, updateExpense, deleteExpense,
   getMonthlySummary, getNetProfit,
+  getPendingRecurring, confirmRecurring, getExpenseTrend,
 };

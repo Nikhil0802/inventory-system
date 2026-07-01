@@ -11,8 +11,11 @@ const TABS = [
   { id: 'all', label: 'All Expenses' },
   { id: 'summary', label: 'Monthly Summary' },
   { id: 'netprofit', label: 'Net Profit' },
+  { id: 'trend', label: 'Expense Trend' },
   { id: 'categories', label: 'Manage Categories' },
 ];
+
+const CAT_COLORS = ['#6366f1', '#f59e0b', '#10b981', '#ef4444', '#8b5cf6', '#06b6d4'];
 
 const now = new Date();
 const THIS_YEAR = now.getFullYear();
@@ -62,6 +65,17 @@ export default function Expenses() {
   const [npYear, setNpYear] = useState(THIS_YEAR);
   const [npMonth, setNpMonth] = useState(THIS_MONTH);
 
+  // Recurring auto-populate state
+  const [pendingRecurring, setPendingRecurring] = useState([]);
+  const [recurringDismissed, setRecurringDismissed] = useState(false);
+  const [recurringSelected, setRecurringSelected] = useState({});
+  const [recurringLoading, setRecurringLoading] = useState(false);
+
+  // Trend state
+  const [trendData, setTrendData] = useState(null);
+  const [trendMonths, setTrendMonths] = useState(6);
+  const [trendLoading, setTrendLoading] = useState(false);
+
   // Category form state
   const [catForm, setCatForm] = useState({ name: '', description: '', monthlyBudget: '', isRecurring: false });
   const [editingCat, setEditingCat] = useState(null);
@@ -87,11 +101,29 @@ export default function Expenses() {
     setNetProfit(res.data);
   }, [npYear, npMonth]);
 
+  const loadTrend = useCallback(async (months) => {
+    setTrendLoading(true);
+    try {
+      const res = await expenseAPI.getTrend(months);
+      setTrendData(res.data);
+    } catch (err) {
+      console.error('loadTrend error', err);
+    } finally {
+      setTrendLoading(false);
+    }
+  }, []);
+
   // Initial load
   useEffect(() => {
     const init = async () => {
       try {
-        await Promise.all([loadCategories(), loadExpenses(), loadSummary(), loadNetProfit()]);
+        const [,,,,pendingRes] = await Promise.all([
+          loadCategories(), loadExpenses(), loadSummary(), loadNetProfit(),
+          expenseAPI.getPendingRecurring(),
+        ]);
+        const pending = pendingRes.data;
+        setPendingRecurring(pending);
+        setRecurringSelected(Object.fromEntries(pending.map(e => [e.id, true])));
       } catch (err) {
         console.error('Expenses init error', err);
       } finally {
@@ -105,6 +137,7 @@ export default function Expenses() {
   useEffect(() => { if (!loading) loadExpenses(); }, [filterYear, filterMonth]);
   useEffect(() => { if (!loading) loadSummary(); }, [summaryYear, summaryMonth]);
   useEffect(() => { if (!loading) loadNetProfit(); }, [npYear, npMonth]);
+  useEffect(() => { if (activeTab === 'trend') loadTrend(trendMonths); }, [activeTab, trendMonths]);
 
   const showSuccess = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
@@ -136,6 +169,31 @@ export default function Expenses() {
       showSuccess('Expense deleted.');
     } catch (err) {
       setError(err.response?.data?.error || 'Failed to delete expense');
+    }
+  };
+
+  const handleConfirmRecurring = async () => {
+    setRecurringLoading(true);
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const toCreate = pendingRecurring
+        .filter(e => recurringSelected[e.id])
+        .map(e => ({
+          categoryId: e.categoryId,
+          amount: e.amount,
+          vendor: e.vendor,
+          description: e.description,
+          expenseDate: today,
+        }));
+      await expenseAPI.confirmRecurring({ expenses: toCreate });
+      setRecurringDismissed(true);
+      setPendingRecurring([]);
+      await Promise.all([loadExpenses(), loadSummary(), loadNetProfit()]);
+      showSuccess(`${toCreate.length} recurring expense${toCreate.length > 1 ? 's' : ''} added for this month.`);
+    } catch (err) {
+      setError('Failed to confirm recurring expenses');
+    } finally {
+      setRecurringLoading(false);
     }
   };
 
@@ -220,6 +278,50 @@ export default function Expenses() {
             </span>
           </div>
         ))}
+
+        {/* Recurring expense confirmation banner */}
+        {pendingRecurring.length > 0 && !recurringDismissed && (
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+            <div className="flex justify-between items-start mb-3">
+              <div>
+                <p className="font-semibold text-purple-800">
+                  {pendingRecurring.length} recurring expense{pendingRecurring.length > 1 ? 's' : ''} from last month
+                </p>
+                <p className="text-sm text-purple-600 mt-0.5">Review and confirm to add them for this month</p>
+              </div>
+              <button onClick={() => setRecurringDismissed(true)} className="text-purple-400 hover:text-purple-700 text-xl font-bold leading-none">×</button>
+            </div>
+            <div className="space-y-2 mb-4">
+              {pendingRecurring.map(exp => (
+                <label key={exp.id} className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={recurringSelected[exp.id] || false}
+                    onChange={e => setRecurringSelected(p => ({ ...p, [exp.id]: e.target.checked }))}
+                    className="h-4 w-4 text-purple-600 rounded"
+                  />
+                  <span className="text-sm text-gray-700">
+                    <strong>{exp.category?.name}</strong>
+                    {exp.vendor && <span className="text-gray-400"> — {exp.vendor}</span>}
+                    <span className="ml-2 font-semibold text-purple-700">{fmt(exp.amount)}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirmRecurring}
+                disabled={recurringLoading || !Object.values(recurringSelected).some(Boolean)}
+                className="bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-sm font-semibold px-4 py-2 rounded-lg transition"
+              >
+                {recurringLoading ? 'Confirming...' : `Confirm Selected (${Object.values(recurringSelected).filter(Boolean).length})`}
+              </button>
+              <button onClick={() => setRecurringDismissed(true)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Sub-tabs */}
         <div className="flex flex-wrap gap-1 bg-gray-100 rounded-xl p-1 mb-8 w-fit">
@@ -516,6 +618,112 @@ export default function Expenses() {
                   </div>
                 )}
               </div>
+            )}
+          </div>
+        )}
+
+        {/* ── EXPENSE TREND ── */}
+        {activeTab === 'trend' && (
+          <div>
+            <div className="flex justify-between items-center mb-6">
+              <div>
+                <h3 className="font-semibold text-gray-700">Month-over-Month Expense Trend</h3>
+                <p className="text-sm text-gray-400 mt-0.5">Compare your spending across months</p>
+              </div>
+              <select
+                value={trendMonths}
+                onChange={e => setTrendMonths(parseInt(e.target.value))}
+                className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+              >
+                <option value={3}>Last 3 months</option>
+                <option value={6}>Last 6 months</option>
+                <option value={12}>Last 12 months</option>
+              </select>
+            </div>
+
+            {trendLoading ? (
+              <p className="text-center text-gray-400 py-16">Loading trend data...</p>
+            ) : !trendData || trendData.months.length === 0 ? (
+              <p className="text-center text-gray-400 py-16">No expense data found for this period.</p>
+            ) : (
+              <>
+                {/* Total expenses bar chart */}
+                <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6">
+                  <p className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wide">Total Expenses by Month</p>
+                  <ResponsiveContainer width="100%" height={240}>
+                    <BarChart data={trendData.months} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                      <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                      <YAxis tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                      <Tooltip formatter={v => [fmt(v), 'Total']} />
+                      <Bar dataKey="total" fill="#6366f1" radius={[4, 4, 0, 0]} name="Total Expenses" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+
+                {/* Stacked category breakdown */}
+                {trendData.topCategories.length > 0 && (
+                  <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-100 mb-6">
+                    <p className="text-sm font-semibold text-gray-500 mb-4 uppercase tracking-wide">Category Breakdown by Month</p>
+                    <ResponsiveContainer width="100%" height={280}>
+                      <BarChart data={trendData.months} margin={{ top: 4, right: 16, left: 0, bottom: 4 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+                        <XAxis dataKey="label" tick={{ fontSize: 12 }} />
+                        <YAxis tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 12 }} />
+                        <Tooltip formatter={(v, name) => [fmt(v), name]} />
+                        <Legend wrapperStyle={{ fontSize: '12px' }} />
+                        {trendData.topCategories.map((cat, i) => (
+                          <Bar key={cat} dataKey={cat} stackId="stack" fill={CAT_COLORS[i % CAT_COLORS.length]} name={cat} />
+                        ))}
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                )}
+
+                {/* Month-over-month table */}
+                <div className="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="bg-gray-50 text-left text-gray-500 border-b border-gray-100">
+                          <th className="px-4 py-3">Month</th>
+                          <th className="px-4 py-3 text-right">Total</th>
+                          <th className="px-4 py-3 text-right">vs Prev Month</th>
+                          {trendData.topCategories.slice(0, 4).map(cat => (
+                            <th key={cat} className="px-4 py-3 text-right text-xs">{cat.split(' ')[0]}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-50">
+                        {trendData.months.map((m, i) => {
+                          const prev = trendData.months[i - 1];
+                          const change = prev && prev.total > 0
+                            ? ((m.total - prev.total) / prev.total * 100)
+                            : null;
+                          return (
+                            <tr key={m.label} className="hover:bg-gray-50">
+                              <td className="px-4 py-3 font-medium text-gray-700">{m.label}</td>
+                              <td className="px-4 py-3 text-right font-semibold text-gray-800">{fmt(m.total)}</td>
+                              <td className="px-4 py-3 text-right">
+                                {change !== null ? (
+                                  <span className={`font-medium text-xs px-2 py-0.5 rounded-full ${change > 5 ? 'bg-red-100 text-red-700' : change < -5 ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
+                                    {change >= 0 ? '+' : ''}{change.toFixed(1)}%
+                                  </span>
+                                ) : <span className="text-gray-300">—</span>}
+                              </td>
+                              {trendData.topCategories.slice(0, 4).map(cat => (
+                                <td key={cat} className="px-4 py-3 text-right text-gray-500 text-xs">
+                                  {m[cat] ? fmt(m[cat]) : <span className="text-gray-200">—</span>}
+                                </td>
+                              ))}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
