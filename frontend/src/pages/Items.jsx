@@ -143,13 +143,16 @@ function InventoryReport({ items }) {
                 <th className="px-4 py-3 text-right">Price</th>
                 <th className="px-4 py-3 text-right">Purchase Price</th>
                 <th className="px-4 py-3 text-right">Sale Price</th>
+                <th className="px-4 py-3 text-right">Wholesale</th>
+                <th className="px-4 py-3 text-right">MRP</th>
+                <th className="px-4 py-3 text-right">Margin ₹</th>
                 <th className="px-4 py-3 text-right">Profit %</th>
                 <th className="px-4 py-3">Location</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
               {filtered.length === 0
-                ? <tr><td colSpan={9} className="text-center text-gray-400 py-12">No items match filters.</td></tr>
+                ? <tr><td colSpan={12} className="text-center text-gray-400 py-12">No items match filters.</td></tr>
                 : filtered.map(item => (
                   <tr key={item.id} className="hover:bg-gray-50">
                     <td className="px-4 py-3 font-mono text-xs text-gray-400">{item.sku}</td>
@@ -167,6 +170,26 @@ function InventoryReport({ items }) {
                     <td className="px-4 py-3 text-right text-gray-700">₹{parseFloat(item.price).toLocaleString('en-IN')}</td>
                     <td className="px-4 py-3 text-right text-gray-500">{item.purchasePrice ? `₹${parseFloat(item.purchasePrice).toLocaleString('en-IN')}` : '—'}</td>
                     <td className="px-4 py-3 text-right text-gray-500">{item.salePriceRetail ? `₹${parseFloat(item.salePriceRetail).toLocaleString('en-IN')}` : '—'}</td>
+                    <td className="px-4 py-3 text-right text-blue-600 text-sm">{item.salePriceWholesale ? `₹${parseFloat(item.salePriceWholesale).toLocaleString('en-IN')}` : '—'}</td>
+                    <td className="px-4 py-3 text-right text-sm">
+                      {item.mrp ? (
+                        <span>
+                          <span className="text-gray-700">₹{parseFloat(item.mrp).toLocaleString('en-IN')}</span>
+                          {item.salePriceRetail && (
+                            <span className={`ml-1 text-xs ${parseFloat(item.salePriceRetail) > parseFloat(item.mrp) ? 'text-red-600 font-semibold' : 'text-green-600'}`}>
+                              {parseFloat(item.salePriceRetail) > parseFloat(item.mrp)
+                                ? 'Above MRP!'
+                                : parseFloat(item.salePriceRetail) === parseFloat(item.mrp)
+                                  ? 'At MRP'
+                                  : `₹${(parseFloat(item.mrp) - parseFloat(item.salePriceRetail)).toLocaleString('en-IN')} below`}
+                            </span>
+                          )}
+                        </span>
+                      ) : '—'}
+                    </td>
+                    <td className="px-4 py-3 text-right font-medium text-gray-700">
+                      {item.marginAmount ? `₹${parseFloat(item.marginAmount).toLocaleString('en-IN')}` : <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="px-4 py-3 text-right">
                       {item.profitPercentage
                         ? <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${parseFloat(item.profitPercentage) >= 15 ? 'bg-green-100 text-green-700' : parseFloat(item.profitPercentage) >= 10 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'}`}>{parseFloat(item.profitPercentage).toFixed(1)}%</span>

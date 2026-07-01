@@ -39,7 +39,7 @@ const createItem = async (req, res) => {
     }
 
     const {
-      purchasePrice, salePriceRetail, mrp, gstRate,
+      purchasePrice, salePriceRetail, salePriceWholesale, mrp, gstRate,
     } = req.body;
 
     // Validate pricing if provided
@@ -68,6 +68,7 @@ const createItem = async (req, res) => {
         location: location || '',
         purchasePrice: purchasePrice ? parseFloat(purchasePrice) : null,
         salePriceRetail: salePriceRetail ? parseFloat(salePriceRetail) : null,
+        salePriceWholesale: salePriceWholesale ? parseFloat(salePriceWholesale) : null,
         mrp: mrp ? parseFloat(mrp) : null,
         gstRate: gstRate || null,
         profitPercentage,
@@ -92,7 +93,7 @@ const updateItem = async (req, res) => {
     const {
       sku, name, description, barcode, quantity, price,
       category, manufacturingDate, expiryDate, serialNumber, location,
-      purchasePrice, salePriceRetail, mrp, gstRate,
+      purchasePrice, salePriceRetail, salePriceWholesale, mrp, gstRate,
     } = req.body;
 
     if (purchasePrice || salePriceRetail) {
@@ -120,6 +121,7 @@ const updateItem = async (req, res) => {
         location,
         purchasePrice: purchasePrice !== undefined ? parseFloat(purchasePrice) : undefined,
         salePriceRetail: salePriceRetail !== undefined ? parseFloat(salePriceRetail) : undefined,
+        salePriceWholesale: salePriceWholesale !== undefined ? (salePriceWholesale ? parseFloat(salePriceWholesale) : null) : undefined,
         mrp: mrp !== undefined ? (mrp ? parseFloat(mrp) : null) : undefined,
         gstRate: gstRate !== undefined ? gstRate : undefined,
         profitPercentage,

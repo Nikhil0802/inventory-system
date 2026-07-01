@@ -84,12 +84,13 @@ model Item {
   updatedAt         DateTime @updatedAt
 
   // Pricing & profit fields (Phase 2)
-  purchasePrice     Decimal? @db.Decimal(10, 2)
-  salePriceRetail   Decimal? @db.Decimal(10, 2)
-  mrp               Decimal? @db.Decimal(10, 2)
-  gstRate           String?  @db.VarChar(10)
-  profitPercentage  Decimal? @db.Decimal(5, 2)
-  marginAmount      Decimal? @db.Decimal(10, 2)
+  purchasePrice      Decimal? @db.Decimal(10, 2)
+  salePriceRetail    Decimal? @db.Decimal(10, 2)
+  salePriceWholesale Decimal? @db.Decimal(10, 2)
+  mrp                Decimal? @db.Decimal(10, 2)
+  gstRate            String?  @db.VarChar(10)
+  profitPercentage   Decimal? @db.Decimal(5, 2)
+  marginAmount       Decimal? @db.Decimal(10, 2)
 
   userId String @db.Char(36)
   user   User   @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)

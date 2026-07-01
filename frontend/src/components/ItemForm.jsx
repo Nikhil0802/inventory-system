@@ -18,6 +18,7 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
     location: '',
     purchasePrice: '',
     salePriceRetail: '',
+    salePriceWholesale: '',
     mrp: '',
     gstRate: '18',
   });
@@ -36,6 +37,7 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
           : '',
         purchasePrice: editingItem.purchasePrice ?? '',
         salePriceRetail: editingItem.salePriceRetail ?? '',
+        salePriceWholesale: editingItem.salePriceWholesale ?? '',
         mrp: editingItem.mrp ?? '',
         gstRate: editingItem.gstRate ?? '18',
       });
@@ -51,6 +53,20 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
     const profitPct = (profitAmount / sale) * 100;
     const gst = parseFloat(formData.gstRate) || 0;
     const gstAmount = sale * (gst / 100);
+
+    const mrp = parseFloat(formData.mrp);
+    const mrpInfo = mrp > 0 ? {
+      discount: (mrp - sale).toFixed(2),
+      aboveMrp: sale > mrp,
+    } : null;
+
+    const wholesale = parseFloat(formData.salePriceWholesale);
+    const wholesaleInfo = wholesale > 0 && purchase > 0 ? {
+      marginAmount: (wholesale - purchase).toFixed(2),
+      marginPct: ((wholesale - purchase) / wholesale * 100).toFixed(1),
+      isValid: wholesale >= purchase,
+    } : null;
+
     return {
       profitAmount: profitAmount.toFixed(2),
       profitPct: profitPct.toFixed(1),
@@ -58,8 +74,10 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
       priceWithGST: (sale + gstAmount).toFixed(2),
       isValid: sale >= purchase,
       color: profitPct >= 15 ? 'green' : profitPct >= 10 ? 'yellow' : 'red',
+      mrpInfo,
+      wholesaleInfo,
     };
-  }, [formData.purchasePrice, formData.salePriceRetail, formData.gstRate]);
+  }, [formData.purchasePrice, formData.salePriceRetail, formData.salePriceWholesale, formData.mrp, formData.gstRate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -92,6 +110,7 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
           location: '',
           purchasePrice: '',
           salePriceRetail: '',
+          salePriceWholesale: '',
           mrp: '',
           gstRate: '18',
         });
@@ -300,6 +319,19 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
                   />
                 </div>
                 <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Wholesale Price (₹) <span className="text-gray-400 font-normal">(optional)</span></label>
+                  <input
+                    type="number"
+                    name="salePriceWholesale"
+                    value={formData.salePriceWholesale}
+                    onChange={handleChange}
+                    min="0"
+                    step="0.01"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                    placeholder="Bulk / distributor price"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">MRP (₹) <span className="text-gray-400 font-normal">(optional)</span></label>
                   <input
                     type="number"
@@ -341,27 +373,64 @@ export default function ItemForm({ onSuccess, editingItem, onCancel, prefillBarc
                   {!profitInfo.isValid ? (
                     <p className="text-red-700 font-medium text-sm">Sale price cannot be less than purchase price</p>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm">
-                      <div>
-                        <p className="text-gray-500">Profit Amount</p>
-                        <p className={`font-bold text-lg ${profitInfo.color === 'green' ? 'text-green-700' : profitInfo.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>
-                          ₹{profitInfo.profitAmount}
-                        </p>
+                    <div className="space-y-3 text-sm">
+                      {/* Row 1: Retail profit */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <p className="text-gray-500">Retail Profit (₹)</p>
+                          <p className={`font-bold text-lg ${profitInfo.color === 'green' ? 'text-green-700' : profitInfo.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>
+                            ₹{profitInfo.profitAmount}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Retail Margin</p>
+                          <p className={`font-bold text-lg ${profitInfo.color === 'green' ? 'text-green-700' : profitInfo.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>
+                            {profitInfo.profitPct}%
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">GST ({formData.gstRate}%)</p>
+                          <p className="font-semibold text-gray-700">₹{profitInfo.gstAmount}</p>
+                        </div>
+                        <div>
+                          <p className="text-gray-500">Price + GST</p>
+                          <p className="font-semibold text-gray-700">₹{profitInfo.priceWithGST}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-gray-500">Profit Margin</p>
-                        <p className={`font-bold text-lg ${profitInfo.color === 'green' ? 'text-green-700' : profitInfo.color === 'yellow' ? 'text-yellow-700' : 'text-red-700'}`}>
-                          {profitInfo.profitPct}%
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">GST ({formData.gstRate}%)</p>
-                        <p className="font-semibold text-gray-700">₹{profitInfo.gstAmount}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Price + GST</p>
-                        <p className="font-semibold text-gray-700">₹{profitInfo.priceWithGST}</p>
-                      </div>
+
+                      {/* Row 2: MRP comparison (only when MRP is set) */}
+                      {profitInfo.mrpInfo && (
+                        <div className={`pt-2 border-t ${profitInfo.mrpInfo.aboveMrp ? 'border-red-200' : 'border-gray-200'}`}>
+                          {profitInfo.mrpInfo.aboveMrp ? (
+                            <p className="text-red-700 font-semibold">
+                              Warning: Sale price is ₹{Math.abs(profitInfo.mrpInfo.discount)} ABOVE MRP — not permitted in India
+                            </p>
+                          ) : (
+                            <p className="text-blue-700">
+                              MRP: Selling ₹{profitInfo.mrpInfo.discount} below MRP
+                              {parseFloat(profitInfo.mrpInfo.discount) === 0 && ' (At MRP)'}
+                            </p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Row 3: Wholesale margin (only when wholesale price is set) */}
+                      {profitInfo.wholesaleInfo && (
+                        <div className="pt-2 border-t border-gray-200 grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-gray-500">Wholesale Profit (₹)</p>
+                            <p className={`font-bold text-lg ${profitInfo.wholesaleInfo.isValid ? 'text-blue-700' : 'text-red-700'}`}>
+                              {profitInfo.wholesaleInfo.isValid ? `₹${profitInfo.wholesaleInfo.marginAmount}` : 'Below cost!'}
+                            </p>
+                          </div>
+                          <div>
+                            <p className="text-gray-500">Wholesale Margin</p>
+                            <p className={`font-bold text-lg ${profitInfo.wholesaleInfo.isValid ? 'text-blue-700' : 'text-red-700'}`}>
+                              {profitInfo.wholesaleInfo.isValid ? `${profitInfo.wholesaleInfo.marginPct}%` : '—'}
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
