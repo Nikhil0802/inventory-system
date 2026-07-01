@@ -7,6 +7,7 @@ const createTransaction = async (req, res, next) => {
     const {
       itemId, type, quantity, price, referenceNo,
       transactionDate, supplierOrBuyer, notes,
+      gstRate: gstRateInput, paymentMethod,
     } = req.body;
 
     // Bug 1 fix: validate transaction type
@@ -52,6 +53,20 @@ const createTransaction = async (req, res, next) => {
         return res.status(400).json({ error: 'Adjustment would result in negative stock.' });
     }
 
+    // GST calculation — only for sales; auto-derive rate from item if not provided
+    const subtotal = parsedPrice * parsedQty;
+    let gstRate = null;
+    let gstAmount = null;
+    let netAmount = null;
+    if (type === 'sale') {
+      const rate = parseFloat(gstRateInput ?? item.gstRate ?? 0);
+      if (!isNaN(rate) && rate >= 0) {
+        gstRate = String(rate);
+        gstAmount = parseFloat((subtotal * rate / 100).toFixed(2));
+        netAmount = parseFloat((subtotal + gstAmount).toFixed(2));
+      }
+    }
+
     const transaction = await prisma.transaction.create({
       data: {
         userId: req.user.userId,
@@ -59,11 +74,15 @@ const createTransaction = async (req, res, next) => {
         type,
         quantity: parsedQty,
         price: parsedPrice,
-        totalAmount: parsedPrice * parsedQty,
+        totalAmount: subtotal,
         referenceNo: referenceNo || '',
         transactionDate: parsedDate,
         supplierOrBuyer: supplierOrBuyer || '',
         notes,
+        gstRate,
+        gstAmount,
+        netAmount,
+        paymentMethod: paymentMethod || null,
       },
     });
 

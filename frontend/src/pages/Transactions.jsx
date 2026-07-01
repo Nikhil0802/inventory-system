@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -40,9 +40,10 @@ const TxTable = ({ rows, emptyMsg = 'No transactions found.' }) => (
                 <th className="px-4 py-3">Type</th>
                 <th className="px-4 py-3 text-right">Qty</th>
                 <th className="px-4 py-3 text-right">Price/Unit</th>
-                <th className="px-4 py-3 text-right">Total</th>
+                <th className="px-4 py-3 text-right">Subtotal</th>
+                <th className="px-4 py-3 text-right">GST</th>
+                <th className="px-4 py-3 text-right">Net Total</th>
                 <th className="px-4 py-3">Supplier / Buyer</th>
-                <th className="px-4 py-3">Ref No.</th>
                 <th className="px-4 py-3">Date</th>
               </tr>
             </thead>
@@ -53,9 +54,14 @@ const TxTable = ({ rows, emptyMsg = 'No transactions found.' }) => (
                   <td className="px-4 py-3"><TypeBadge type={tx.type} /></td>
                   <td className="px-4 py-3 text-right">{tx.quantity}</td>
                   <td className="px-4 py-3 text-right">₹{parseFloat(tx.price).toLocaleString('en-IN')}</td>
-                  <td className="px-4 py-3 text-right font-semibold text-gray-800">₹{parseFloat(tx.totalAmount).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3 text-right text-gray-600">₹{parseFloat(tx.totalAmount).toLocaleString('en-IN')}</td>
+                  <td className="px-4 py-3 text-right text-orange-600 text-xs">
+                    {tx.gstAmount ? `₹${parseFloat(tx.gstAmount).toLocaleString('en-IN')} (${tx.gstRate}%)` : '—'}
+                  </td>
+                  <td className="px-4 py-3 text-right font-semibold text-gray-800">
+                    {tx.netAmount ? `₹${parseFloat(tx.netAmount).toLocaleString('en-IN')}` : `₹${parseFloat(tx.totalAmount).toLocaleString('en-IN')}`}
+                  </td>
                   <td className="px-4 py-3 text-gray-500">{tx.supplierOrBuyer || '—'}</td>
-                  <td className="px-4 py-3 text-gray-400 font-mono text-xs">{tx.referenceNo || '—'}</td>
                   <td className="px-4 py-3 text-gray-500">{new Date(tx.transactionDate).toLocaleDateString('en-IN')}</td>
                 </tr>
               ))}
@@ -87,7 +93,7 @@ export default function Transactions() {
   const [formData, setFormData] = useState({
     itemId: '', type: 'purchase', quantity: 1, price: 0,
     referenceNo: '', transactionDate: now.toISOString().split('T')[0],
-    supplierOrBuyer: '', notes: '',
+    supplierOrBuyer: '', notes: '', gstRate: '0', paymentMethod: 'cash',
   });
 
   useEffect(() => { fetchData(); }, []);
@@ -104,15 +110,43 @@ export default function Transactions() {
     }
   };
 
-  const handleChange = e => setFormData(p => ({ ...p, [e.target.name]: e.target.value }));
+  const handleChange = e => {
+    const { name, value } = e.target;
+    setFormData(p => {
+      const updated = { ...p, [name]: value };
+      // Auto-fill GST rate from selected item
+      if (name === 'itemId') {
+        const selectedItem = items.find(i => i.id === value);
+        updated.gstRate = selectedItem?.gstRate ?? '0';
+      }
+      return updated;
+    });
+  };
+
+  // Live GST breakdown — only for sales
+  const gstInfo = useMemo(() => {
+    if (formData.type !== 'sale') return null;
+    const qty = parseInt(formData.quantity) || 0;
+    const price = parseFloat(formData.price) || 0;
+    const rate = parseFloat(formData.gstRate) || 0;
+    if (qty <= 0 || price <= 0) return null;
+    const subtotal = price * qty;
+    const gstAmount = parseFloat((subtotal * rate / 100).toFixed(2));
+    const netAmount = parseFloat((subtotal + gstAmount).toFixed(2));
+    return { subtotal, rate, gstAmount, netAmount };
+  }, [formData.type, formData.quantity, formData.price, formData.gstRate]);
 
   const handleSubmit = async e => {
     e.preventDefault();
     setError('');
     setFormLoading(true);
     try {
-      await transactionAPI.create(formData);
-      setFormData({ itemId: '', type: 'purchase', quantity: 1, price: 0, referenceNo: '', transactionDate: now.toISOString().split('T')[0], supplierOrBuyer: '', notes: '' });
+      const payload = {
+        ...formData,
+        ...(gstInfo && { gstAmount: gstInfo.gstAmount, netAmount: gstInfo.netAmount }),
+      };
+      await transactionAPI.create(payload);
+      setFormData({ itemId: '', type: 'purchase', quantity: 1, price: 0, referenceNo: '', transactionDate: now.toISOString().split('T')[0], supplierOrBuyer: '', notes: '', gstRate: '0', paymentMethod: 'cash' });
       await fetchData();
       setActiveTab('all');
     } catch (err) {
@@ -280,11 +314,57 @@ export default function Transactions() {
                       <label className="block text-sm font-medium text-gray-700 mb-1">Reference No.</label>
                       <input type="text" name="referenceNo" value={formData.referenceNo} onChange={handleChange} placeholder="Invoice / PO number" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                     </div>
+                    {/* GST Rate — shown for sales */}
+                    {formData.type === 'sale' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">GST Rate (%)</label>
+                        <select name="gstRate" value={formData.gstRate} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                          {['0', '5', '12', '18', '28'].map(r => <option key={r} value={r}>{r}% GST</option>)}
+                        </select>
+                      </div>
+                    )}
+
+                    {/* Payment Method — shown for sales */}
+                    {formData.type === 'sale' && (
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Payment Method</label>
+                        <select name="paymentMethod" value={formData.paymentMethod} onChange={handleChange} className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                          <option value="cash">Cash</option>
+                          <option value="upi">UPI</option>
+                          <option value="card">Card</option>
+                          <option value="cheque">Cheque</option>
+                          <option value="credit">Credit</option>
+                        </select>
+                      </div>
+                    )}
+
                     <div className="md:col-span-2">
                       <label className="block text-sm font-medium text-gray-700 mb-1">Notes</label>
                       <input type="text" name="notes" value={formData.notes} onChange={handleChange} placeholder="Optional" className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm" />
                     </div>
                   </div>
+
+                  {/* GST Breakdown Panel */}
+                  {gstInfo && (
+                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 text-sm">
+                      <p className="font-semibold text-blue-800 mb-2">GST Breakdown</p>
+                      <div className="space-y-1 text-blue-700">
+                        <div className="flex justify-between">
+                          <span>Subtotal ({formData.quantity} × ₹{parseFloat(formData.price || 0).toLocaleString('en-IN')})</span>
+                          <span className="font-medium">₹{gstInfo.subtotal.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>GST ({gstInfo.rate}%)</span>
+                          <span className="font-medium">₹{gstInfo.gstAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                        <div className="flex justify-between border-t border-blue-300 pt-1 mt-1 font-bold text-blue-900">
+                          <span>Total Payable by Customer</span>
+                          <span>₹{gstInfo.netAmount.toLocaleString('en-IN')}</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   <button type="submit" disabled={formLoading} className="bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-semibold py-2.5 px-8 rounded-lg transition text-sm">
                     {formLoading ? 'Recording...' : 'Record Transaction'}
                   </button>
