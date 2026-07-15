@@ -6,31 +6,95 @@ const api = axios.create({
   baseURL: API_BASE_URL,
 });
 
-// Attach JWT token to every request automatically
+// Attach access token to every request
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  const token = localStorage.getItem('accessToken');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
   return config;
 });
 
-// Bug 7 fix: if any request gets a 401 (expired/invalid token), clear storage and redirect to login
+// On 401: try to refresh the access token once, then retry the original request.
+// If refresh also fails, clear storage and redirect to login.
+let isRefreshing = false;
+let failedQueue = [];
+
+function processQueue(error, token = null) {
+  failedQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error);
+    else resolve(token);
+  });
+  failedQueue = [];
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('token');
-      localStorage.removeItem('user');
-      window.location.href = '/login';
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Skip refresh for auth endpoints to avoid infinite loops
+    const isAuthEndpoint = originalRequest.url?.includes('/auth/');
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthEndpoint) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject });
+        }).then((token) => {
+          originalRequest.headers.Authorization = `Bearer ${token}`;
+          return api(originalRequest);
+        });
+      }
+
+      originalRequest._retry = true;
+      isRefreshing = true;
+
+      try {
+        const storedRefreshToken = localStorage.getItem('refreshToken');
+        if (!storedRefreshToken) throw new Error('No refresh token');
+
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh-token`, {
+          refreshToken: storedRefreshToken,
+        });
+
+        const { accessToken } = response.data;
+        localStorage.setItem('accessToken', accessToken);
+        processQueue(null, accessToken);
+
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+        return api(originalRequest);
+      } catch (refreshError) {
+        processQueue(refreshError, null);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        localStorage.removeItem('user');
+        window.location.href = '/login';
+        return Promise.reject(refreshError);
+      } finally {
+        isRefreshing = false;
+      }
     }
+
     return Promise.reject(error);
   }
 );
 
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
+  verifyEmail: (data) => api.post('/auth/verify-email', data),
+  resendOtp: (data) => api.post('/auth/resend-otp', data),
   login: (data) => api.post('/auth/login', data),
+  logout: () => api.post('/auth/logout'),
+  forgotPassword: (data) => api.post('/auth/forgot-password', data),
+  resetPassword: (data) => api.post('/auth/reset-password', data),
+  acceptInvite: (data) => api.post('/auth/accept-invite', data),
+};
+
+export const teamAPI = {
+  getTeam: () => api.get('/team'),
+  invite: (data) => api.post('/team/invite', data),
+  changeRole: (userId, role) => api.put(`/team/${userId}/role`, { role }),
+  removeMember: (userId) => api.delete(`/team/${userId}`),
+  cancelInvite: (inviteId) => api.delete(`/team/invites/${inviteId}`),
 };
 
 export const itemAPI = {

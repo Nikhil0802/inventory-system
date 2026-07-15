@@ -5,19 +5,18 @@ const DEFAULT_CATEGORIES = require('../config/expenseCategories');
 
 const getCategories = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const { userId, organizationId } = req.user;
     let categories = await prisma.expenseCategory.findMany({
-      where: { userId },
+      where: { organizationId },
       orderBy: { name: 'asc' },
     });
 
-    // Seed defaults on first use
     if (categories.length === 0) {
       await prisma.expenseCategory.createMany({
-        data: DEFAULT_CATEGORIES.map(c => ({ ...c, userId })),
+        data: DEFAULT_CATEGORIES.map(c => ({ ...c, userId, organizationId })),
       });
       categories = await prisma.expenseCategory.findMany({
-        where: { userId },
+        where: { organizationId },
         orderBy: { name: 'asc' },
       });
     }
@@ -32,7 +31,7 @@ const getCategories = async (req, res) => {
 const createCategory = async (req, res) => {
   try {
     const { name, description, monthlyBudget } = req.body;
-    const userId = req.user.userId;
+    const { userId, organizationId } = req.user;
     if (!name) return res.status(400).json({ error: 'Category name is required' });
 
     const category = await prisma.expenseCategory.create({
@@ -41,6 +40,7 @@ const createCategory = async (req, res) => {
         description: description || null,
         monthlyBudget: monthlyBudget ? parseFloat(monthlyBudget) : null,
         userId,
+        organizationId,
       },
     });
     return res.status(201).json(category);
@@ -54,9 +54,9 @@ const updateCategory = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description, monthlyBudget } = req.body;
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
 
-    const existing = await prisma.expenseCategory.findFirst({ where: { id, userId } });
+    const existing = await prisma.expenseCategory.findFirst({ where: { id, organizationId } });
     if (!existing) return res.status(404).json({ error: 'Category not found' });
 
     const category = await prisma.expenseCategory.update({
@@ -79,9 +79,9 @@ const updateCategory = async (req, res) => {
 const deleteCategory = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
 
-    const existing = await prisma.expenseCategory.findFirst({ where: { id, userId } });
+    const existing = await prisma.expenseCategory.findFirst({ where: { id, organizationId } });
     if (!existing) return res.status(404).json({ error: 'Category not found' });
 
     const count = await prisma.expense.count({ where: { categoryId: id } });
@@ -101,10 +101,10 @@ const deleteCategory = async (req, res) => {
 
 const getExpenses = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
     const { year, month } = req.query;
 
-    const where = { userId };
+    const where = { organizationId };
     if (year && month) {
       const start = new Date(parseInt(year), parseInt(month) - 1, 1);
       const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
@@ -126,13 +126,13 @@ const getExpenses = async (req, res) => {
 const createExpense = async (req, res) => {
   try {
     const { categoryId, amount, vendor, description, expenseDate, isRecurring } = req.body;
-    const userId = req.user.userId;
+    const { userId, organizationId } = req.user;
 
     if (!categoryId || !amount || !expenseDate) {
       return res.status(400).json({ error: 'categoryId, amount and expenseDate are required' });
     }
 
-    const category = await prisma.expenseCategory.findFirst({ where: { id: categoryId, userId } });
+    const category = await prisma.expenseCategory.findFirst({ where: { id: categoryId, organizationId } });
     if (!category) return res.status(404).json({ error: 'Category not found' });
 
     const expense = await prisma.expense.create({
@@ -144,6 +144,7 @@ const createExpense = async (req, res) => {
         expenseDate: new Date(expenseDate),
         isRecurring: Boolean(isRecurring),
         userId,
+        organizationId,
       },
       include: { category: true },
     });
@@ -157,10 +158,10 @@ const createExpense = async (req, res) => {
 const updateExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
     const { categoryId, amount, vendor, description, expenseDate, isRecurring } = req.body;
 
-    const existing = await prisma.expense.findFirst({ where: { id, userId } });
+    const existing = await prisma.expense.findFirst({ where: { id, organizationId } });
     if (!existing) return res.status(404).json({ error: 'Expense not found' });
 
     const expense = await prisma.expense.update({
@@ -185,9 +186,9 @@ const updateExpense = async (req, res) => {
 const deleteExpense = async (req, res) => {
   try {
     const { id } = req.params;
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
 
-    const existing = await prisma.expense.findFirst({ where: { id, userId } });
+    const existing = await prisma.expense.findFirst({ where: { id, organizationId } });
     if (!existing) return res.status(404).json({ error: 'Expense not found' });
 
     await prisma.expense.delete({ where: { id } });
@@ -203,15 +204,15 @@ const deleteExpense = async (req, res) => {
 const getMonthlySummary = async (req, res) => {
   try {
     const { year, month } = req.params;
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
 
     const start = new Date(parseInt(year), parseInt(month) - 1, 1);
     const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
 
     const [categories, expenses] = await Promise.all([
-      prisma.expenseCategory.findMany({ where: { userId }, orderBy: { name: 'asc' } }),
+      prisma.expenseCategory.findMany({ where: { organizationId }, orderBy: { name: 'asc' } }),
       prisma.expense.findMany({
-        where: { userId, expenseDate: { gte: start, lte: end } },
+        where: { organizationId, expenseDate: { gte: start, lte: end } },
         include: { category: true },
       }),
     ]);
@@ -255,18 +256,18 @@ const getMonthlySummary = async (req, res) => {
 const getNetProfit = async (req, res) => {
   try {
     const { year, month } = req.params;
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
 
     const start = new Date(parseInt(year), parseInt(month) - 1, 1);
     const end = new Date(parseInt(year), parseInt(month), 0, 23, 59, 59);
 
     const [saleTx, expenses] = await Promise.all([
       prisma.transaction.findMany({
-        where: { userId, type: 'sale', transactionDate: { gte: start, lte: end } },
+        where: { organizationId, type: 'sale', transactionDate: { gte: start, lte: end } },
         include: { item: { select: { purchasePrice: true } } },
       }),
       prisma.expense.findMany({
-        where: { userId, expenseDate: { gte: start, lte: end } },
+        where: { organizationId, expenseDate: { gte: start, lte: end } },
         include: { category: { select: { name: true } } },
       }),
     ]);
@@ -282,7 +283,6 @@ const getNetProfit = async (req, res) => {
     const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0;
     const netMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0;
 
-    // Expense breakdown by category
     const expByCategory = {};
     expenses.forEach(e => {
       const name = e.category.name;
@@ -314,7 +314,7 @@ const getNetProfit = async (req, res) => {
 
 const getPendingRecurring = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const { userId, organizationId } = req.user;
     const now = new Date();
 
     const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
@@ -324,12 +324,12 @@ const getPendingRecurring = async (req, res) => {
 
     const [lastMonthRecurring, thisMonthExpenses] = await Promise.all([
       prisma.expense.findMany({
-        where: { userId, isRecurring: true, expenseDate: { gte: lastMonthStart, lte: lastMonthEnd } },
+        where: { organizationId, isRecurring: true, expenseDate: { gte: lastMonthStart, lte: lastMonthEnd } },
         include: { category: true },
         orderBy: { amount: 'desc' },
       }),
       prisma.expense.findMany({
-        where: { userId, expenseDate: { gte: thisMonthStart, lte: thisMonthEnd } },
+        where: { organizationId, expenseDate: { gte: thisMonthStart, lte: thisMonthEnd } },
         select: { categoryId: true },
       }),
     ]);
@@ -346,7 +346,7 @@ const getPendingRecurring = async (req, res) => {
 
 const confirmRecurring = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const { userId, organizationId } = req.user;
     const { expenses } = req.body;
 
     if (!Array.isArray(expenses) || expenses.length === 0) {
@@ -355,7 +355,7 @@ const confirmRecurring = async (req, res) => {
 
     const categoryIds = [...new Set(expenses.map(e => e.categoryId))];
     const validCats = await prisma.expenseCategory.findMany({
-      where: { id: { in: categoryIds }, userId },
+      where: { id: { in: categoryIds }, organizationId },
       select: { id: true },
     });
     const validCatIds = new Set(validCats.map(c => c.id));
@@ -364,6 +364,7 @@ const confirmRecurring = async (req, res) => {
       .filter(e => validCatIds.has(e.categoryId))
       .map(e => ({
         userId,
+        organizationId,
         categoryId: e.categoryId,
         amount: parseFloat(e.amount),
         vendor: e.vendor || null,
@@ -384,7 +385,7 @@ const confirmRecurring = async (req, res) => {
 
 const getExpenseTrend = async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const { organizationId } = req.user;
     const months = Math.min(parseInt(req.query.months) || 6, 12);
     const now = new Date();
 
@@ -397,7 +398,7 @@ const getExpenseTrend = async (req, res) => {
       const end   = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59);
 
       const expenses = await prisma.expense.findMany({
-        where: { userId, expenseDate: { gte: start, lte: end } },
+        where: { organizationId, expenseDate: { gte: start, lte: end } },
         include: { category: { select: { name: true } } },
       });
 

@@ -1,23 +1,16 @@
 const express = require('express');
-const { verifyToken, checkRole } = require('../middleware/authMiddleware');
+const { verifyToken, checkPermission } = require('../middleware/authMiddleware');
 const { validateCreateItem, validateUpdateItem } = require('../validators/itemValidator');
-const {
-  getItems,
-  createItem,
-  updateItem,
-  deleteItem,
-  getItemByBarcode,
-} = require('../controllers/itemController');
+const { getItems, createItem, updateItem, deleteItem, getItemByBarcode } = require('../controllers/itemController');
 
 const router = express.Router();
 
-// All routes require authentication
 router.use(verifyToken);
 
-router.get('/', getItems);
-router.get('/barcode/search', getItemByBarcode);
-router.post('/', checkRole(['admin', 'manager', 'staff']), validateCreateItem, createItem);
-router.put('/:id', checkRole(['admin', 'manager', 'staff']), validateUpdateItem, updateItem);
-router.delete('/:id', checkRole(['admin', 'manager']), deleteItem);
+router.get('/', checkPermission('view:inventory'), getItems);
+router.get('/barcode/search', checkPermission('view:inventory'), getItemByBarcode);
+router.post('/', checkPermission('manage:inventory'), validateCreateItem, createItem);
+router.put('/:id', checkPermission('manage:inventory'), validateUpdateItem, updateItem);
+router.delete('/:id', checkPermission('manage:inventory'), deleteItem);
 
 module.exports = router;

@@ -1,10 +1,11 @@
 const express = require('express');
-const { verifyToken } = require('../middleware/authMiddleware');
+const { verifyToken, checkPermission } = require('../middleware/authMiddleware');
 const { getTodayProfit, getMonthProfit, getItemsProfit, getPeriodComparison } = require('../controllers/profitController');
 
 const router = express.Router();
 
 router.use(verifyToken);
+router.use(checkPermission('view:profit'));
 
 router.get('/today', getTodayProfit);
 router.get('/month/:year/:month', getMonthProfit);

@@ -1,6 +1,11 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
+import AcceptInvite from './pages/AcceptInvite';
+import TeamMembers from './pages/TeamMembers';
 import Dashboard from './pages/Dashboard';
 import Items from './pages/Items';
 import Transactions from './pages/Transactions';
@@ -17,6 +22,10 @@ function App() {
         {/* Public routes — no login needed */}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
+        <Route path="/verify-email" element={<VerifyEmail />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/accept-invite" element={<AcceptInvite />} />
 
         {/* Protected routes — redirect to /login if no token */}
         <Route
@@ -72,6 +81,14 @@ function App() {
           element={
             <ProtectedRoute>
               <ProfitDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/team"
+          element={
+            <ProtectedRoute>
+              <TeamMembers />
             </ProtectedRoute>
           }
         />

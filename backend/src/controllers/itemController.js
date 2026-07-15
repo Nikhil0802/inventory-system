@@ -4,7 +4,7 @@ const { calculateProfit, validatePrices } = require('../services/profitCalculati
 const getItems = async (req, res) => {
   try {
     const items = await prisma.item.findMany({
-      where: { userId: req.user.userId },
+      where: { organizationId: req.user.organizationId },
       orderBy: { createdAt: 'desc' },
     });
     res.json(items);
@@ -29,8 +29,9 @@ const createItem = async (req, res) => {
 
     if (license && license.type === 'free') {
       const itemCount = await prisma.item.count({
-        where: { userId: req.user.userId },
+        where: { organizationId: req.user.organizationId },
       });
+
       if (itemCount >= license.itemLimit) {
         return res.status(403).json({
           error: 'Free plan limit reached. Upgrade to add more items.',
@@ -55,6 +56,7 @@ const createItem = async (req, res) => {
     const item = await prisma.item.create({
       data: {
         userId: req.user.userId,
+        organizationId: req.user.organizationId,
         sku,
         name,
         description,
@@ -172,7 +174,7 @@ const getItemByBarcode = async (req, res) => {
     const item = await prisma.item.findFirst({
       where: {
         barcode,
-        userId: req.user.userId,
+        organizationId: req.user.organizationId,
       },
     });
 

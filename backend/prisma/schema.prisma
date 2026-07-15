@@ -9,81 +9,140 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model Organization {
+  id        String   @id @default(uuid()) @db.Char(36)
+  name      String   @db.VarChar(255)
+  planTier  String   @default("free") @db.VarChar(20)
+  status    String   @default("active") @db.VarChar(20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users             User[]
+  items             Item[]
+  transactions      Transaction[]
+  expenseCategories ExpenseCategory[]
+  expenses          Expense[]
+  invitations       Invitation[]
+  @@map("Organizations")
+}
+
+model Invitation {
+  id             String       @id @default(uuid()) @db.Char(36)
+  organizationId String       @db.Char(36)
+  organization   Organization @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: Cascade)
+  email          String       @db.VarChar(255)
+  role           String       @db.VarChar(20)
+  tokenHash      String       @db.VarChar(255)
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  invitedById    String       @db.Char(36)
+  createdAt      DateTime     @default(now())
+  @@map("Invitations")
+}
 
 model License {
-  id          String   @id @default(uuid()) @db.Char(36)
-  type        String   @db.VarChar(50)
+  id          String    @id @default(uuid()) @db.Char(36)
+  type        String    @db.VarChar(50)
   itemLimit   Int
   maxUsers    Int
   expiryDate  DateTime?
-  purchasedAt DateTime @default(now())
+  purchasedAt DateTime  @default(now())
   users       User[]
   @@map("Licenses")
 }
 
 model User {
-  id        String   @id @default(uuid()) @db.Char(36)
-  email     String   @unique @db.VarChar(255)
-  password  String   @db.VarChar(255)
-  name      String   @db.VarChar(255)
-  role      String   @db.VarChar(50)
-  createdAt DateTime @default(now())
-  licenseId String?  @db.Char(36)
-  license   License? @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  id             String        @id @default(uuid()) @db.Char(36)
+  email          String        @unique @db.VarChar(255)
+  password       String        @db.VarChar(255)
+  name           String        @db.VarChar(255)
+  role           String        @db.VarChar(50)
+  createdAt      DateTime      @default(now())
+  licenseId      String?       @db.Char(36)
+  license        License?      @relation(fields: [licenseId], references: [id], onDelete: SetNull)
+  organizationId String?       @db.Char(36)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  // Auth enhancements
+  emailVerified       Boolean   @default(false)
+  status              String    @default("PENDING") @db.VarChar(20)
+  refreshTokenHash    String?   @db.VarChar(255)
+  passwordResetToken  String?   @db.VarChar(255)
+  passwordResetExpiry DateTime?
+  lastLoginAt         DateTime?
+  lastLoginIp         String?   @db.VarChar(45)
+
   items             Item[]
   transactions      Transaction[]
   expenseCategories ExpenseCategory[]
   expenses          Expense[]
+  otpVerifications  OtpVerification[]
   @@map("Users")
 }
 
+model OtpVerification {
+  id        String    @id @default(uuid()) @db.Char(36)
+  userId    String    @db.Char(36)
+  user      User      @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: Cascade)
+  otpHash   String    @db.VarChar(255)
+  purpose   String    @db.VarChar(30)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  @@map("OtpVerifications")
+}
+
 model ExpenseCategory {
-  id            String    @id @default(uuid()) @db.Char(36)
-  name          String    @db.VarChar(100)
-  description   String?   @db.VarChar(255)
-  monthlyBudget Decimal?  @db.Decimal(10, 2)
-  isRecurring   Boolean   @default(false)
-  userId        String    @db.Char(36)
-  user          User      @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  expenses      Expense[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String       @id @default(uuid()) @db.Char(36)
+  name           String       @db.VarChar(100)
+  description    String?      @db.VarChar(255)
+  monthlyBudget  Decimal?     @db.Decimal(10, 2)
+  isRecurring    Boolean      @default(false)
+  userId         String       @db.Char(36)
+  user           User         @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  organizationId String       @db.Char(36)
+  organization   Organization @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  expenses       Expense[]
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
   @@map("ExpenseCategories")
 }
 
 model Expense {
-  id          String          @id @default(uuid()) @db.Char(36)
-  categoryId  String          @db.Char(36)
-  category    ExpenseCategory @relation(fields: [categoryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  amount      Decimal         @db.Decimal(10, 2)
-  vendor      String?         @db.VarChar(255)
-  description String?         @db.VarChar(500)
-  expenseDate DateTime
-  isRecurring Boolean         @default(false)
-  userId      String          @db.Char(36)
-  user        User            @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id             String          @id @default(uuid()) @db.Char(36)
+  categoryId     String          @db.Char(36)
+  category       ExpenseCategory @relation(fields: [categoryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  amount         Decimal         @db.Decimal(10, 2)
+  vendor         String?         @db.VarChar(255)
+  description    String?         @db.VarChar(500)
+  expenseDate    DateTime
+  isRecurring    Boolean         @default(false)
+  userId         String          @db.Char(36)
+  user           User            @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  organizationId String          @db.Char(36)
+  organization   Organization    @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   @@map("Expenses")
 }
 
 model Item {
-  id                String   @id @default(uuid()) @db.Char(36)
-  sku               String   @unique @db.VarChar(255)
-  name              String   @db.VarChar(255)
-  description       String?  @db.Text
-  barcode           String   @db.VarChar(255)
-  quantity          Int      @default(0)
-  price             Decimal  @db.Decimal(10, 2)
-  category          String   @db.VarChar(100)
+  id                String       @id @default(uuid()) @db.Char(36)
+  sku               String       @unique @db.VarChar(255)
+  name              String       @db.VarChar(255)
+  description       String?      @db.Text
+  barcode           String       @db.VarChar(255)
+  quantity          Int          @default(0)
+  price             Decimal      @db.Decimal(10, 2)
+  category          String       @db.VarChar(100)
   manufacturingDate DateTime?
   expiryDate        DateTime?
-  serialNumber      String?  @db.VarChar(255)
-  location          String   @db.VarChar(255)
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  serialNumber      String?      @db.VarChar(255)
+  location          String       @db.VarChar(255)
+  createdAt         DateTime     @default(now())
+  updatedAt         DateTime     @updatedAt
 
-  // Pricing & profit fields (Phase 2)
+  // Pricing & profit fields
   purchasePrice      Decimal? @db.Decimal(10, 2)
   salePriceRetail    Decimal? @db.Decimal(10, 2)
   salePriceWholesale Decimal? @db.Decimal(10, 2)
@@ -92,35 +151,39 @@ model Item {
   profitPercentage   Decimal? @db.Decimal(5, 2)
   marginAmount       Decimal? @db.Decimal(10, 2)
 
-  userId String @db.Char(36)
-  user   User   @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  transactions Transaction[]
+  userId         String       @db.Char(36)
+  user           User         @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  organizationId String       @db.Char(36)
+  organization   Organization @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  transactions   Transaction[]
   @@map("Items")
 }
 
 model Transaction {
-  id               String   @id @default(uuid()) @db.Char(36)
-  type             String   @db.VarChar(50)
-  quantity         Int
-  price            Decimal  @db.Decimal(10, 2)
-  totalAmount      Decimal  @db.Decimal(12, 2)
-  referenceNo      String   @db.VarChar(255)
-  transactionDate  DateTime
-  supplierOrBuyer  String   @db.VarChar(255)
-  notes            String?  @db.Text
-  createdAt        DateTime @default(now())
+  id              String   @id @default(uuid()) @db.Char(36)
+  type            String   @db.VarChar(50)
+  quantity        Int
+  price           Decimal  @db.Decimal(10, 2)
+  totalAmount     Decimal  @db.Decimal(12, 2)
+  referenceNo     String   @db.VarChar(255)
+  transactionDate DateTime
+  supplierOrBuyer String   @db.VarChar(255)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
 
-  // Financial fields (Phase 2)
-  gstRate           String?  @db.VarChar(10)
-  gstAmount         Decimal? @db.Decimal(10, 2)
+  // Financial fields
+  gstRate            String?  @db.VarChar(10)
+  gstAmount          Decimal? @db.Decimal(10, 2)
   discountPercentage Decimal? @db.Decimal(5, 2)
-  discountAmount    Decimal? @db.Decimal(10, 2)
-  netAmount         Decimal? @db.Decimal(12, 2)
-  paymentMethod     String?  @db.VarChar(50)
+  discountAmount     Decimal? @db.Decimal(10, 2)
+  netAmount          Decimal? @db.Decimal(12, 2)
+  paymentMethod      String?  @db.VarChar(50)
 
-  userId String @db.Char(36)
-  user   User   @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  itemId String @db.Char(36)
-  item   Item   @relation(fields: [itemId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  userId         String       @db.Char(36)
+  user           User         @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  itemId         String       @db.Char(36)
+  item           Item         @relation(fields: [itemId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  organizationId String       @db.Char(36)
+  organization   Organization @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   @@map("Transactions")
 }

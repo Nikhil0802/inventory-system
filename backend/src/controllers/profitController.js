@@ -2,7 +2,7 @@ const prisma = require('../config/prismaClient');
 
 const getTodayProfit = async (req, res, next) => {
   try {
-    const userId = req.user.userId;
+    const organizationId = req.user.organizationId;
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const endOfDay = new Date(startOfDay);
@@ -14,7 +14,7 @@ const getTodayProfit = async (req, res, next) => {
     const [todayTx, yesterdayTx] = await Promise.all([
       prisma.transaction.findMany({
         where: {
-          userId,
+          organizationId,
           type: 'sale',
           transactionDate: { gte: startOfDay, lt: endOfDay },
         },
@@ -22,7 +22,7 @@ const getTodayProfit = async (req, res, next) => {
       }),
       prisma.transaction.findMany({
         where: {
-          userId,
+          organizationId,
           type: 'sale',
           transactionDate: { gte: yesterday, lt: startOfDay },
         },
@@ -42,7 +42,6 @@ const getTodayProfit = async (req, res, next) => {
       ? ((totalSales - yesterdaySales) / yesterdaySales) * 100
       : null;
 
-    // Top items by profit today
     const itemProfitMap = {};
     todayTx.forEach(t => {
       const itemName = t.item?.name || 'Unknown';
@@ -78,7 +77,7 @@ const getTodayProfit = async (req, res, next) => {
 
 const getMonthProfit = async (req, res, next) => {
   try {
-    const userId = req.user.userId;
+    const organizationId = req.user.organizationId;
     const { year, month } = req.params;
     const y = parseInt(year);
     const m = parseInt(month) - 1;
@@ -88,7 +87,7 @@ const getMonthProfit = async (req, res, next) => {
 
     const transactions = await prisma.transaction.findMany({
       where: {
-        userId,
+        organizationId,
         transactionDate: { gte: startOfMonth, lt: endOfMonth },
       },
       include: { item: true },
@@ -107,7 +106,6 @@ const getMonthProfit = async (req, res, next) => {
     const grossProfit = totalSales - totalCost;
     const profitMargin = totalSales > 0 ? (grossProfit / totalSales) * 100 : 0;
 
-    // Daily breakdown
     const dailyMap = {};
     sales.forEach(t => {
       const date = t.transactionDate.toISOString().split('T')[0];
@@ -143,10 +141,10 @@ const getMonthProfit = async (req, res, next) => {
 
 const getItemsProfit = async (req, res, next) => {
   try {
-    const userId = req.user.userId;
+    const organizationId = req.user.organizationId;
 
     const transactions = await prisma.transaction.findMany({
-      where: { userId, type: 'sale' },
+      where: { organizationId, type: 'sale' },
       include: { item: true },
     });
 
@@ -195,7 +193,7 @@ const getItemsProfit = async (req, res, next) => {
 
 const getPeriodComparison = async (req, res, next) => {
   try {
-    const userId = req.user.userId;
+    const organizationId = req.user.organizationId;
     const { period } = req.params;
 
     const now = new Date();
@@ -227,11 +225,11 @@ const getPeriodComparison = async (req, res, next) => {
 
     const [thisTx, lastTx] = await Promise.all([
       prisma.transaction.findMany({
-        where: { userId, type: 'sale', transactionDate: { gte: thisPeriodStart, lt: thisPeriodEnd } },
+        where: { organizationId, type: 'sale', transactionDate: { gte: thisPeriodStart, lt: thisPeriodEnd } },
         include: { item: true },
       }),
       prisma.transaction.findMany({
-        where: { userId, type: 'sale', transactionDate: { gte: lastPeriodStart, lt: lastPeriodEnd } },
+        where: { organizationId, type: 'sale', transactionDate: { gte: lastPeriodStart, lt: lastPeriodEnd } },
         include: { item: true },
       }),
     ]);

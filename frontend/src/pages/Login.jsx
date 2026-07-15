@@ -23,11 +23,17 @@ export default function Login() {
 
     try {
       const response = await authAPI.login(formData);
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('accessToken', response.data.accessToken);
+      localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      const errData = err.response?.data;
+      if (errData?.requiresVerification) {
+        navigate(`/verify-email?email=${encodeURIComponent(errData.email)}`);
+        return;
+      }
+      setError(errData?.error || 'Login failed');
     } finally {
       setLoading(false);
     }
@@ -85,6 +91,12 @@ export default function Login() {
           >
             {loading ? 'Signing In...' : 'Sign In'}
           </button>
+
+          <div className="text-center">
+            <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+              Forgot password?
+            </Link>
+          </div>
         </form>
 
         <p className="text-center text-gray-600 mt-4">

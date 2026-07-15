@@ -70,6 +70,7 @@ const createTransaction = async (req, res, next) => {
     const transaction = await prisma.transaction.create({
       data: {
         userId: req.user.userId,
+        organizationId: req.user.organizationId,
         itemId,
         type,
         quantity: parsedQty,
@@ -100,7 +101,7 @@ const createTransaction = async (req, res, next) => {
 const getTransactions = async (req, res, next) => {
   try {
     const transactions = await prisma.transaction.findMany({
-      where: { userId: req.user.userId },
+      where: { organizationId: req.user.organizationId },
       include: { item: true },
       orderBy: { createdAt: 'desc' },
     });
@@ -119,7 +120,7 @@ const getTransactionsByItem = async (req, res, next) => {
     if (!item) return res.status(404).json({ error: 'Item not found.' });
 
     const transactions = await prisma.transaction.findMany({
-      where: { itemId, userId: req.user.userId },
+      where: { itemId, organizationId: req.user.organizationId },
       orderBy: { transactionDate: 'desc' },
     });
     res.json(transactions);

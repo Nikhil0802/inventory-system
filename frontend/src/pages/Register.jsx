@@ -4,6 +4,7 @@ import { authAPI } from '../api/api';
 
 export default function Register() {
   const [formData, setFormData] = useState({
+    organizationName: '',
     name: '',
     email: '',
     password: '',
@@ -30,12 +31,12 @@ export default function Register() {
     setLoading(true);
     try {
       await authAPI.register({
+        organizationName: formData.organizationName,
         name: formData.name,
         email: formData.email,
         password: formData.password,
       });
-      alert('Registration successful! Please log in.');
-      navigate('/login');
+      navigate(`/verify-email?email=${encodeURIComponent(formData.email)}`);
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
     } finally {
@@ -59,7 +60,22 @@ export default function Register() {
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">
-              Full Name
+              Business / Organization Name
+            </label>
+            <input
+              type="text"
+              name="organizationName"
+              value={formData.organizationName}
+              onChange={handleChange}
+              required
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              placeholder="e.g. Ranjit Electronics"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Your Full Name
             </label>
             <input
               type="text"

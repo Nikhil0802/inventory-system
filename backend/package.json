@@ -13,16 +13,16 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "@prisma/client": "4.16.2",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.3",
-    "@prisma/client": "4.16.2"
+    "nodemailer": "^9.0.3"
   },
   "devDependencies": {
-    
     "@types/node": "^25.9.3",
     "nodemon": "^3.1.14",
     "prisma": "4.16.2",

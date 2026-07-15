@@ -7,7 +7,7 @@ const itemRoutes = require('./routes/itemRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const profitRoutes = require('./routes/profitRoutes');
 const expenseRoutes = require('./routes/expenseRoutes');
-const authMiddleware = require('./middleware/authMiddleware');
+const teamRoutes = require('./routes/teamRoutes');
 const prisma = require('./config/prismaClient');
 
 const app = express();
@@ -21,6 +21,7 @@ app.use('/api/items', itemRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/profit', profitRoutes);
 app.use('/api/expenses', expenseRoutes);
+app.use('/api/team', teamRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ 
