@@ -209,6 +209,14 @@ const login = async (req, res, next) => {
       return res.status(403).json({ error: 'Your account has been suspended. Please contact support.' });
     }
 
+    if (user.organization?.status === 'suspended') {
+      return res.status(403).json({
+        error: user.organization.suspendedReason
+          ? `Your organization has been suspended: ${user.organization.suspendedReason}`
+          : 'Your organization has been suspended. Please contact support.',
+      });
+    }
+
     const accessToken = generateAccessToken(user);
     const refreshToken = generateRefreshToken(user);
     const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
@@ -255,13 +263,24 @@ const refreshToken = async (req, res, next) => {
       return res.status(401).json({ error: 'Invalid or expired refresh token.' });
     }
 
-    const user = await prisma.user.findUnique({ where: { id: decoded.userId } });
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      include: { organization: true },
+    });
     if (!user || !user.refreshTokenHash) {
       return res.status(401).json({ error: 'Session expired. Please log in again.' });
     }
 
     const valid = await bcrypt.compare(token, user.refreshTokenHash);
     if (!valid) return res.status(401).json({ error: 'Invalid refresh token.' });
+
+    if (user.organization?.status === 'suspended') {
+      return res.status(403).json({
+        error: user.organization.suspendedReason
+          ? `Your organization has been suspended: ${user.organization.suspendedReason}`
+          : 'Your organization has been suspended. Please contact support.',
+      });
+    }
 
     return res.json({ accessToken: generateAccessToken(user) });
   } catch (error) {

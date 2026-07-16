@@ -10,12 +10,14 @@ datasource db {
 }
 
 model Organization {
-  id        String   @id @default(uuid()) @db.Char(36)
-  name      String   @db.VarChar(255)
-  planTier  String   @default("free") @db.VarChar(20)
-  status    String   @default("active") @db.VarChar(20)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id              String    @id @default(uuid()) @db.Char(36)
+  name            String    @db.VarChar(255)
+  planTier        String    @default("free") @db.VarChar(20)
+  status          String    @default("active") @db.VarChar(20)
+  suspendedReason String?   @db.VarChar(500)
+  suspendedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   users             User[]
   items             Item[]
@@ -23,7 +25,21 @@ model Organization {
   expenseCategories ExpenseCategory[]
   expenses          Expense[]
   invitations       Invitation[]
+
   @@map("Organizations")
+}
+
+model PlatformAdmin {
+  id               String    @id @default(uuid()) @db.Char(36)
+  email            String    @unique @db.VarChar(255)
+  password         String    @db.VarChar(255)
+  name             String    @db.VarChar(255)
+  refreshTokenHash String?   @db.VarChar(255)
+  lastLoginAt      DateTime?
+  lastLoginIp      String?   @db.VarChar(45)
+  createdAt        DateTime  @default(now())
+
+  @@map("PlatformAdmins")
 }
 
 model Invitation {
@@ -37,6 +53,7 @@ model Invitation {
   acceptedAt     DateTime?
   invitedById    String       @db.Char(36)
   createdAt      DateTime     @default(now())
+
   @@map("Invitations")
 }
 
@@ -48,6 +65,7 @@ model License {
   expiryDate  DateTime?
   purchasedAt DateTime  @default(now())
   users       User[]
+
   @@map("Licenses")
 }
 
@@ -77,6 +95,7 @@ model User {
   expenseCategories ExpenseCategory[]
   expenses          Expense[]
   otpVerifications  OtpVerification[]
+
   @@map("Users")
 }
 
@@ -89,6 +108,7 @@ model OtpVerification {
   expiresAt DateTime
   usedAt    DateTime?
   createdAt DateTime  @default(now())
+
   @@map("OtpVerifications")
 }
 
@@ -105,6 +125,7 @@ model ExpenseCategory {
   expenses       Expense[]
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
+
   @@map("ExpenseCategories")
 }
 
@@ -123,24 +144,25 @@ model Expense {
   organization   Organization    @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
+
   @@map("Expenses")
 }
 
 model Item {
-  id                String       @id @default(uuid()) @db.Char(36)
-  sku               String       @unique @db.VarChar(255)
-  name              String       @db.VarChar(255)
-  description       String?      @db.Text
-  barcode           String       @db.VarChar(255)
-  quantity          Int          @default(0)
-  price             Decimal      @db.Decimal(10, 2)
-  category          String       @db.VarChar(100)
+  id                String    @id @default(uuid()) @db.Char(36)
+  sku               String    @unique @db.VarChar(255)
+  name              String    @db.VarChar(255)
+  description       String?   @db.Text
+  barcode           String    @db.VarChar(255)
+  quantity          Int       @default(0)
+  price             Decimal   @db.Decimal(10, 2)
+  category          String    @db.VarChar(100)
   manufacturingDate DateTime?
   expiryDate        DateTime?
-  serialNumber      String?      @db.VarChar(255)
-  location          String       @db.VarChar(255)
-  createdAt         DateTime     @default(now())
-  updatedAt         DateTime     @updatedAt
+  serialNumber      String?   @db.VarChar(255)
+  location          String    @db.VarChar(255)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   // Pricing & profit fields
   purchasePrice      Decimal? @db.Decimal(10, 2)
@@ -151,11 +173,12 @@ model Item {
   profitPercentage   Decimal? @db.Decimal(5, 2)
   marginAmount       Decimal? @db.Decimal(10, 2)
 
-  userId         String       @db.Char(36)
-  user           User         @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
-  organizationId String       @db.Char(36)
-  organization   Organization @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  userId         String        @db.Char(36)
+  user           User          @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  organizationId String        @db.Char(36)
+  organization   Organization  @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   transactions   Transaction[]
+
   @@map("Items")
 }
 
@@ -185,5 +208,6 @@ model Transaction {
   item           Item         @relation(fields: [itemId], references: [id], onUpdate: NoAction, onDelete: NoAction)
   organizationId String       @db.Char(36)
   organization   Organization @relation(fields: [organizationId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
   @@map("Transactions")
 }

@@ -13,7 +13,11 @@ import Scan from './pages/Scan';
 import Expenses from './pages/Expenses';
 import Reports from './pages/Reports';
 import ProfitDashboard from './pages/ProfitDashboard';
+import PlatformLogin from './pages/PlatformLogin';
+import PlatformDashboard from './pages/PlatformDashboard';
+import PlatformOrgDetail from './pages/PlatformOrgDetail';
 import ProtectedRoute from './components/ProtectedRoute';
+import PlatformProtectedRoute from './components/PlatformProtectedRoute';
 
 function App() {
   return (
@@ -90,6 +94,25 @@ function App() {
             <ProtectedRoute>
               <TeamMembers />
             </ProtectedRoute>
+          }
+        />
+
+        {/* Platform admin — separate portal, not linked from the customer app */}
+        <Route path="/platform/login" element={<PlatformLogin />} />
+        <Route
+          path="/platform"
+          element={
+            <PlatformProtectedRoute>
+              <PlatformDashboard />
+            </PlatformProtectedRoute>
+          }
+        />
+        <Route
+          path="/platform/organizations/:id"
+          element={
+            <PlatformProtectedRoute>
+              <PlatformOrgDetail />
+            </PlatformProtectedRoute>
           }
         />
 
