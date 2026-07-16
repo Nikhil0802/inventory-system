@@ -367,6 +367,7 @@ const resetPassword = async (req, res, next) => {
         passwordResetToken: null,
         passwordResetExpiry: null,
         refreshTokenHash: null,
+        mustChangePassword: false,
       },
     });
 

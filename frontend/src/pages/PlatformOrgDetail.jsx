@@ -18,6 +18,9 @@ export default function PlatformOrgDetail() {
   const [licenseMsg, setLicenseMsg] = useState('');
   const [licenseSaving, setLicenseSaving] = useState(false);
 
+  const [resetResult, setResetResult] = useState(null); // { email, temporaryPassword } | null
+  const [copied, setCopied] = useState(false);
+
   const load = useCallback(async () => {
     try {
       setLoading(true);
@@ -64,9 +67,19 @@ export default function PlatformOrgDetail() {
     if (!window.confirm(`Reset password for ${member.email}? They will have to change it on their next login.`)) return;
     try {
       const res = await platformAPI.resetMemberPassword(org.id, member.id);
-      alert(`Password reset for ${member.email}.\n\nTemporary password: ${res.data.temporaryPassword}\n\nShare this with them out of band — they must change it on first login.`);
+      setCopied(false);
+      setResetResult({ email: member.email, temporaryPassword: res.data.temporaryPassword });
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to reset password.');
+    }
+  };
+
+  const handleCopyTempPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(resetResult.temporaryPassword);
+      setCopied(true);
+    } catch {
+      setCopied(false);
     }
   };
 
@@ -134,6 +147,36 @@ export default function PlatformOrgDetail() {
       </div>
 
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
+        {resetResult && (
+          <div className="bg-indigo-950/40 border border-indigo-700 rounded-lg px-4 py-3 text-sm">
+            <div className="flex justify-between items-start gap-4">
+              <div>
+                <p className="text-indigo-300 mb-2">
+                  Password reset for <span className="font-medium">{resetResult.email}</span>. They must
+                  change it on their next login.
+                </p>
+                <code className="bg-slate-900 border border-slate-700 rounded px-3 py-1.5 text-indigo-200 select-all inline-block">
+                  {resetResult.temporaryPassword}
+                </code>
+              </div>
+              <div className="flex flex-col items-end gap-2 shrink-0">
+                <button
+                  onClick={handleCopyTempPassword}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium px-3 py-1.5 rounded"
+                >
+                  {copied ? 'Copied!' : 'Copy'}
+                </button>
+                <button
+                  onClick={() => setResetResult(null)}
+                  className="text-slate-500 hover:text-slate-300 text-xs"
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {org.status === 'suspended' && (
           <div className="bg-red-900/30 border border-red-700 rounded-lg px-4 py-3 text-sm text-red-300 flex justify-between items-center">
             <span>
