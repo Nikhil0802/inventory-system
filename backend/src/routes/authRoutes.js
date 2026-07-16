@@ -8,6 +8,7 @@ const {
   logout,
   forgotPassword,
   resetPassword,
+  forceChangePassword,
   acceptInvite,
 } = require('../controllers/authController');
 const { verifyToken } = require('../middleware/authMiddleware');
@@ -22,6 +23,7 @@ router.post('/refresh-token', refreshToken);
 router.post('/logout', verifyToken, logout);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
+router.post('/force-change-password', forceChangePassword);
 router.post('/accept-invite', acceptInvite);
 
 module.exports = router;

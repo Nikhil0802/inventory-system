@@ -89,6 +89,7 @@ model User {
   passwordResetExpiry DateTime?
   lastLoginAt         DateTime?
   lastLoginIp         String?   @db.VarChar(45)
+  mustChangePassword  Boolean   @default(false)
 
   items             Item[]
   transactions      Transaction[]

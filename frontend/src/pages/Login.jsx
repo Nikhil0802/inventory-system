@@ -33,6 +33,10 @@ export default function Login() {
         navigate(`/verify-email?email=${encodeURIComponent(errData.email)}`);
         return;
       }
+      if (errData?.requiresPasswordChange) {
+        navigate(`/force-change-password?email=${encodeURIComponent(errData.email)}`);
+        return;
+      }
       setError(errData?.error || 'Login failed');
     } finally {
       setLoading(false);

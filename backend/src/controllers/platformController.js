@@ -1,3 +1,4 @@
+const bcrypt = require('bcryptjs');
 const prisma = require('../config/prismaClient');
 
 const VALID_TIERS = ['free', 'starter', 'pro', 'enterprise'];
@@ -207,6 +208,93 @@ const updateLicense = async (req, res, next) => {
   }
 };
 
+// ─── TESTING-ONLY account management ──────────────────────────────────────────
+// The three functions below (deleteMember, deleteOrganization, resetMemberPassword)
+// exist to make it possible to free up emails and reset accounts while this app has
+// no real customers yet. Remove this whole section (and its routes) before production.
+
+// DELETE /api/platform/organizations/:orgId/members/:userId
+// Reassigns any items/transactions/expenses the member created to the org owner first,
+// so deleting the account never silently destroys business data.
+const deleteMember = async (req, res, next) => {
+  try {
+    const { orgId, userId } = req.params;
+
+    const target = await prisma.user.findFirst({ where: { id: userId, organizationId: orgId } });
+    if (!target) return res.status(404).json({ error: 'User not found in this organization.' });
+    if (target.role === 'owner') {
+      return res.status(400).json({ error: 'Cannot delete the owner this way — delete the whole organization instead.' });
+    }
+
+    const owner = await prisma.user.findFirst({ where: { organizationId: orgId, role: 'owner' } });
+
+    await prisma.$transaction(async (tx) => {
+      if (owner) {
+        await tx.item.updateMany({ where: { userId: target.id }, data: { userId: owner.id } });
+        await tx.transaction.updateMany({ where: { userId: target.id }, data: { userId: owner.id } });
+        await tx.expenseCategory.updateMany({ where: { userId: target.id }, data: { userId: owner.id } });
+        await tx.expense.updateMany({ where: { userId: target.id }, data: { userId: owner.id } });
+      }
+      await tx.user.delete({ where: { id: target.id } });
+    });
+
+    res.json({ message: `${target.email} has been deleted and is free to register again.` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/platform/organizations/:id
+// Full destructive wipe of an organization and everything in it. Deletes children
+// before parents (FK order) inside a transaction, freeing every member's email.
+const deleteOrganization = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const org = await prisma.organization.findUnique({ where: { id } });
+    if (!org) return res.status(404).json({ error: 'Organization not found.' });
+
+    await prisma.$transaction([
+      prisma.expense.deleteMany({ where: { organizationId: id } }),
+      prisma.expenseCategory.deleteMany({ where: { organizationId: id } }),
+      prisma.transaction.deleteMany({ where: { organizationId: id } }),
+      prisma.item.deleteMany({ where: { organizationId: id } }),
+      prisma.user.deleteMany({ where: { organizationId: id } }),
+      prisma.organization.delete({ where: { id } }),
+    ]);
+
+    res.json({ message: `${org.name} and all its data have been permanently deleted.` });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// PUT /api/platform/organizations/:orgId/members/:userId/reset-password
+// Resets to the shared PLATFORM_DEFAULT_RESET_PASSWORD; the member is forced to set a
+// new password on their next login attempt (see mustChangePassword in authController.login).
+const resetMemberPassword = async (req, res, next) => {
+  try {
+    const { orgId, userId } = req.params;
+    const target = await prisma.user.findFirst({ where: { id: userId, organizationId: orgId } });
+    if (!target) return res.status(404).json({ error: 'User not found in this organization.' });
+
+    const defaultPassword = process.env.PLATFORM_DEFAULT_RESET_PASSWORD;
+    if (!defaultPassword) return res.status(500).json({ error: 'PLATFORM_DEFAULT_RESET_PASSWORD is not configured.' });
+
+    await prisma.user.update({
+      where: { id: target.id },
+      data: {
+        password: await bcrypt.hash(defaultPassword, 10),
+        mustChangePassword: true,
+        refreshTokenHash: null,
+      },
+    });
+
+    res.json({ message: `Password reset for ${target.email}.`, temporaryPassword: defaultPassword });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getOrganizations,
   getOrganization,
@@ -214,4 +302,7 @@ module.exports = {
   unsuspendOrganization,
   updatePlanTier,
   updateLicense,
+  deleteMember,
+  deleteOrganization,
+  resetMemberPassword,
 };

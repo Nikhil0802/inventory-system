@@ -209,6 +209,14 @@ const login = async (req, res, next) => {
       return res.status(403).json({ error: 'Your account has been suspended. Please contact support.' });
     }
 
+    if (user.mustChangePassword) {
+      return res.status(403).json({
+        error: 'Your password was reset by an administrator. Please set a new password to continue.',
+        requiresPasswordChange: true,
+        email: user.email,
+      });
+    }
+
     if (user.organization?.status === 'suspended') {
       return res.status(403).json({
         error: user.organization.suspendedReason
@@ -368,6 +376,39 @@ const resetPassword = async (req, res, next) => {
   }
 };
 
+// ─── Force Change Password (after an admin reset) ────────────────────────────
+
+const forceChangePassword = async (req, res, next) => {
+  try {
+    const { email, currentPassword, newPassword } = req.body;
+    if (!email || !currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Email, current password, and new password are required.' });
+    }
+    if (newPassword.length < 8) return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+
+    const user = await prisma.user.findUnique({ where: { email } });
+    if (!user || !user.mustChangePassword) {
+      return res.status(400).json({ error: 'No password change is required for this account.' });
+    }
+
+    const passwordMatches = await bcrypt.compare(currentPassword, user.password);
+    if (!passwordMatches) return res.status(401).json({ error: 'Current password is incorrect.' });
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: await bcrypt.hash(newPassword, 10),
+        mustChangePassword: false,
+        refreshTokenHash: null,
+      },
+    });
+
+    return res.json({ message: 'Password changed successfully. Please log in.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // ─── Accept Invite ────────────────────────────────────────────────────────────
 
 const acceptInvite = async (req, res, next) => {
@@ -427,5 +468,6 @@ module.exports = {
   logout,
   forgotPassword,
   resetPassword,
+  forceChangePassword,
   acceptInvite,
 };

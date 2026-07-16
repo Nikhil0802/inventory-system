@@ -4,6 +4,7 @@ import Register from './pages/Register';
 import VerifyEmail from './pages/VerifyEmail';
 import ForgotPassword from './pages/ForgotPassword';
 import ResetPassword from './pages/ResetPassword';
+import ForceChangePassword from './pages/ForceChangePassword';
 import AcceptInvite from './pages/AcceptInvite';
 import TeamMembers from './pages/TeamMembers';
 import Dashboard from './pages/Dashboard';
@@ -29,6 +30,7 @@ function App() {
         <Route path="/verify-email" element={<VerifyEmail />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/force-change-password" element={<ForceChangePassword />} />
         <Route path="/accept-invite" element={<AcceptInvite />} />
 
         {/* Protected routes — redirect to /login if no token */}

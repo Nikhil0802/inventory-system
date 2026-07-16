@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link } from 'react-router-dom';
 import { platformAPI } from '../api/platformApi';
 
 const STATUS_COLORS = {
@@ -9,6 +9,7 @@ const STATUS_COLORS = {
 
 export default function PlatformOrgDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const [org, setOrg] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -56,6 +57,40 @@ export default function PlatformOrgDetail() {
       load();
     } catch (err) {
       alert(err.response?.data?.error || 'Failed to unsuspend organization.');
+    }
+  };
+
+  const handleResetPassword = async (member) => {
+    if (!window.confirm(`Reset password for ${member.email}? They will have to change it on their next login.`)) return;
+    try {
+      const res = await platformAPI.resetMemberPassword(org.id, member.id);
+      alert(`Password reset for ${member.email}.\n\nTemporary password: ${res.data.temporaryPassword}\n\nShare this with them out of band — they must change it on first login.`);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to reset password.');
+    }
+  };
+
+  const handleDeleteMember = async (member) => {
+    if (!window.confirm(`Permanently delete ${member.email}? This frees the email for reuse and cannot be undone.`)) return;
+    try {
+      await platformAPI.deleteMember(org.id, member.id);
+      load();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete member.');
+    }
+  };
+
+  const handleDeleteOrganization = async () => {
+    if (!window.confirm(`Permanently delete "${org.name}" and ALL its data (items, transactions, expenses, every member)? This cannot be undone.`)) return;
+    if (window.prompt(`Type the organization name to confirm: `) !== org.name) {
+      alert('Name did not match — cancelled.');
+      return;
+    }
+    try {
+      await platformAPI.deleteOrganization(org.id);
+      navigate('/platform');
+    } catch (err) {
+      alert(err.response?.data?.error || 'Failed to delete organization.');
     }
   };
 
@@ -189,6 +224,7 @@ export default function PlatformOrgDetail() {
                 <th className="text-left px-4 py-2 font-medium text-slate-500">Role</th>
                 <th className="text-left px-4 py-2 font-medium text-slate-500">Status</th>
                 <th className="text-left px-4 py-2 font-medium text-slate-500">Last Login</th>
+                <th className="px-4 py-2"></th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-700">
@@ -201,10 +237,40 @@ export default function PlatformOrgDetail() {
                   <td className="px-4 py-2 text-slate-500 text-xs">
                     {m.lastLoginAt ? new Date(m.lastLoginAt).toLocaleDateString() : 'Never'}
                   </td>
+                  <td className="px-4 py-2 text-right whitespace-nowrap space-x-3">
+                    <button
+                      onClick={() => handleResetPassword(m)}
+                      className="text-indigo-400 hover:text-indigo-300 text-xs font-medium"
+                    >
+                      Reset password
+                    </button>
+                    {m.role !== 'owner' && (
+                      <button
+                        onClick={() => handleDeleteMember(m)}
+                        className="text-red-400 hover:text-red-300 text-xs font-medium"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="bg-red-950/30 border border-red-900 rounded-lg p-5">
+          <h2 className="text-sm font-semibold text-red-400 mb-2">Danger Zone</h2>
+          <p className="text-xs text-slate-400 mb-3">
+            Permanently deletes this organization, every member account, and all its data. Frees every
+            member's email for reuse. Cannot be undone.
+          </p>
+          <button
+            onClick={handleDeleteOrganization}
+            className="bg-red-900 hover:bg-red-800 text-red-100 text-sm font-medium px-4 py-2 rounded-lg"
+          >
+            Delete organization permanently
+          </button>
         </div>
       </div>
     </div>

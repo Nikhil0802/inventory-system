@@ -89,6 +89,10 @@ export const platformAPI = {
   unsuspend: (id) => platformApi.put(`/platform/organizations/${id}/unsuspend`),
   updatePlanTier: (id, planTier) => platformApi.put(`/platform/organizations/${id}/plan`, { planTier }),
   updateLicense: (id, data) => platformApi.put(`/platform/organizations/${id}/license`, data),
+  // Testing-only account management — see platformController.js
+  deleteOrganization: (id) => platformApi.delete(`/platform/organizations/${id}`),
+  deleteMember: (orgId, userId) => platformApi.delete(`/platform/organizations/${orgId}/members/${userId}`),
+  resetMemberPassword: (orgId, userId) => platformApi.put(`/platform/organizations/${orgId}/members/${userId}/reset-password`),
 };
 
 export default platformApi;
