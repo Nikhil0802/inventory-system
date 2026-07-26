@@ -36,7 +36,7 @@ const createTransaction = async (req, res, next) => {
       return res.status(400).json({ error: 'Price must be a non-negative number.' });
     }
 
-    const item = await prisma.item.findUnique({ where: { id: itemId } });
+    const item = await prisma.item.findFirst({ where: { id: itemId, organizationId: req.user.organizationId } });
     if (!item) return res.status(404).json({ error: 'Item not found' });
 
     let newQuantity = item.quantity;
@@ -116,7 +116,7 @@ const getTransactionsByItem = async (req, res, next) => {
     const { itemId } = req.params;
 
     // Bug 8 fix: verify item exists before querying transactions
-    const item = await prisma.item.findUnique({ where: { id: itemId } });
+    const item = await prisma.item.findFirst({ where: { id: itemId, organizationId: req.user.organizationId } });
     if (!item) return res.status(404).json({ error: 'Item not found.' });
 
     const transactions = await prisma.transaction.findMany({

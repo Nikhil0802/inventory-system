@@ -98,6 +98,9 @@ const updateItem = async (req, res) => {
       purchasePrice, salePriceRetail, salePriceWholesale, mrp, gstRate,
     } = req.body;
 
+    const existing = await prisma.item.findFirst({ where: { id, organizationId: req.user.organizationId } });
+    if (!existing) return res.status(404).json({ error: 'Item not found.' });
+
     if (purchasePrice || salePriceRetail) {
       const { isValid, errors } = validatePrices(purchasePrice, salePriceRetail, mrp);
       if (!isValid) return res.status(400).json({ error: errors.join(' ') });
@@ -148,6 +151,9 @@ const updateItem = async (req, res) => {
 const deleteItem = async (req, res) => {
   try {
     const { id } = req.params;
+
+    const existing = await prisma.item.findFirst({ where: { id, organizationId: req.user.organizationId } });
+    if (!existing) return res.status(404).json({ error: 'Item not found.' });
 
     await prisma.item.delete({
       where: { id },

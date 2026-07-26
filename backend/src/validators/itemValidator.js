@@ -9,6 +9,14 @@ const createSchema = Joi.object({
   price: Joi.alternatives().try(Joi.number(), Joi.string()).default('0'),
   category: Joi.string().max(100).default('general'),
   location: Joi.string().max(255).allow('', null),
+  manufacturingDate: Joi.date().allow('', null),
+  expiryDate: Joi.date().allow('', null),
+  serialNumber: Joi.string().max(255).allow('', null),
+  purchasePrice: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  salePriceRetail: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  salePriceWholesale: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  mrp: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  gstRate: Joi.string().max(10).allow('', null),
 });
 
 const updateSchema = Joi.object({
@@ -20,6 +28,14 @@ const updateSchema = Joi.object({
   price: Joi.alternatives().try(Joi.number(), Joi.string()),
   category: Joi.string().max(100),
   location: Joi.string().max(255).allow('', null),
+  manufacturingDate: Joi.date().allow('', null),
+  expiryDate: Joi.date().allow('', null),
+  serialNumber: Joi.string().max(255).allow('', null),
+  purchasePrice: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  salePriceRetail: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  salePriceWholesale: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  mrp: Joi.alternatives().try(Joi.number(), Joi.string()).allow('', null),
+  gstRate: Joi.string().max(10).allow('', null),
 });
 
 function validate(schema) {
